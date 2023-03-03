@@ -49,8 +49,10 @@ rram_crossbar rram
     end
     
      always begin
-   		 #10 CLK = !CLK;
-       	 CLK_ADC = !CLK_ADC;
+   		 #10 CLK = 1'b0; CLK_ADC = 1'b0;
+   		 #9 CLK = 1'b1;
+   		 #1 CLK_ADC = 1'b1;
+       	 
   	 end
  
 endmodule

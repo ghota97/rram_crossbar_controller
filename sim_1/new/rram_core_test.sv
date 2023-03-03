@@ -67,8 +67,11 @@ module rram_core_tb;
     end
     
      always begin
-   		 #10 CLK = !CLK;
-       	 CLK_ADC = !CLK_ADC;
+   		 #10 CLK = !CLK; 
+  	 end
+  	 always begin
+  	     #11 CLK_ADC = !CLK_ADC;
+   		 #9 CLK_ADC = !CLK_ADC;
   	 end
  
 endmodule

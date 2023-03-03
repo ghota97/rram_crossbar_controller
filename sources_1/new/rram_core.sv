@@ -41,7 +41,7 @@ module rram_core(CLK, CLK_ADC, RESET, WR_WL, WR_BL, WE, RE, DATAIN, ADDR, valid_
     
     always @(posedge CLK_ADC) begin
         if (RESET) valid_o <= 1'b0;
-        else valid_o <= 1'b1;
+        else if (RE) valid_o <= 1'b1;
     end
     
     rram_crossbar rram

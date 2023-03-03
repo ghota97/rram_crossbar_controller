@@ -40,7 +40,7 @@ module rram_crossbar (CLK, CLK_ADC, RESET, WL, BL, ADCSEL, ADCout, WREN, RDEN);
         if(WREN) rram_mem[selected_WL] <= BL;
 		if(RDEN) begin
           for (int i=0; i<512;i++) begin //SL loop
-					SL_ACC[i] <= {3'b0, rram_mem[selected_WL][2*i]};  //Reading out single row
+					SL_ACC[i] <= {3'b0, rram_mem[selected_WL][2*i+selected_WL[0]]};  //Reading out single row, Odd WL select odd BL, even WL select even BL
 		  end
 		end
       end
