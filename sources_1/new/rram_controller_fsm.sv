@@ -316,7 +316,7 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     end
     
     logic [INSTR_WIDTH-1:0] LOCAL_INSTR;
-    logic [LOCAL_OPCODE_WIDTH-1:0] LOCAL_OPCODE;
+    //logic [LOCAL_OPCODE_WIDTH-1:0] LOCAL_OPCODE;
     logic [DATAIN_WIDTH-1:0] LOCAL_DATAIN;
     
     //Replacing the OpCodes from rram_controller to local registers/variables
@@ -330,8 +330,14 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     // LOCAL_INSTR (1001) : RESET all registers, 
     
     localparam [INSTR_WIDTH-1:0] CMD_WRITE_WEIGHTS    = 4'd0;     // Write Weights, 10b (START ADDR for BL/SL Register), We can write 64 egisters at once
-    localparam [INSTR_WIDTH-1:0] CMD_PROGRAM_DEVICE   = 4'd1;     // Program RRAM, OpCode:- 8b (Number of Cycles to Write) + + 1b (ROW_POL) + 1b (COL_POL) + 10b (ADDR to write)
+    reg [8:0] START_ADDR_SL;
+    localparam [INSTR_WIDTH-1:0] CMD_PROGRAM_DEVICE   = 4'd1;     // Program RRAM, OpCode:- 1b (ROW_POL) + 1b (COL_POL) + 10b (ADDR to write)
+    reg [9:0] WRITE_ADDR;
+    reg ROW_POL;
+    reg COL_POL;
     localparam [INSTR_WIDTH-1:0] CMD_READ_SINGLE_ADDR = 4'd2;     // Read Single Device, OpCode:-  10b (ADDR to read)
+    reg [9:0] READ_ROW_ADDR;
+    reg [3:0] OFFSET;
     localparam [INSTR_WIDTH-1:0] CMD_WRITE_INPUTS     = 4'd3;     // Write Inputs (WL Registers),  10b (START ADDR for WL Register)
     localparam [INSTR_WIDTH-1:0] CMD_COMPUTE_MVM      = 4'd4;     // Read Multiple Devices i.e do MVM, OpCode:- 6b(Segment Width/Number of Rows to read, in multiple of 16) + 10b (START ADDR for WL)
     localparam [INSTR_WIDTH-1:0] CMD_READ_ADCOUT      = 4'd5;     // Read ADCoutput, OpCode:- 9b (ADCout Address to Read)
@@ -347,7 +353,7 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     //Combinational Logic
     always_comb begin
         
-        WL_SEL = (INSTR==CMD_COMPUTE_MVM)?(WL_UNGATED & {NUM_WL{CLK_WL}}):WL_UNGATED; //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+        WL_SEL = (LOCAL_INSTR==CMD_COMPUTE_MVM)?(WL_UNGATED & {NUM_WL{CLK_WL}}):WL_UNGATED; //Only gate the Clock when MVM is done, Don't gate it when programming/reading
         
         //This default condition needs to be specified to avoid latches and result in clean synthesis.
         WL_UNGATED = {NUM_WL{1'b0}};  //None of the WL selected
@@ -417,14 +423,14 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     always_comb begin
          for (int i=0; i<NUM_SL;i++) begin
                 //BL Controls
-				BL_SEL[i][0]= (INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][0] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][0]; //BLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				BL_SEL[i][1]= (INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][1] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][1]; //BLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				BL_SEL[i][2]= (INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][2] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][2]; //BLref SEL  //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][0] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][0]; //BLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][1] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][1]; //BLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][2] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][2]; //BLref SEL  //Only gate the Clock when MVM is done, Don't gate it when programming/reading
 				
 				//SL Controls
-				SL_SEL[i][0]= (INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][0] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][0]; //SLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				SL_SEL[i][1]= (INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][1] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][1]; //SLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				SL_SEL[i][2]= (INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][2] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][2]; //SLref SEL //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][0] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][0]; //SLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][1] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][1]; //SLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][2] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][2]; //SLref SEL //Only gate the Clock when MVM is done, Don't gate it when programming/reading
 		 end
 		 
 		 //This default condition needs to be specified to avoid latches and result in clean synthesis.
@@ -437,7 +443,7 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
          DATAOUT = 64'b0; //Dafault DATAOUT
          BL_BIAS_SEL = 3'b000;   //READ     
          SL_BIAS_SEL = 1'b0;  //READ
-		 case (INSTR) 
+		 case (LOCAL_INSTR) 
              CMD_PROGRAM_DEVICE: begin 
                      //Controller needs to spend 4 cycles to program each weight, Row and Column Polarity exposed to ASIC Controller, increment ADDR by +2 after each weight programming
                      //Written Assuming CMD_PROGRAM_DEVICE is active for OpCode[17;10] number of cycles, If ASIC doesn't time this, we can build a timer internally/ build a FSM
@@ -462,16 +468,16 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                     SL_BIAS_SEL = 1'b1;  //WRITE
                 end
                 CMD_READ_SINGLE_ADDR: begin
-                    for (int i=0; i<NUM_SL;i++) begin
-                        BL_UNGATED[i] = 3'b001; //BL selected to VBL+, BL selected to VBL-
-                        SL_UNGATED[i] = 3'b000; //SL Left floating and the parasitic cap gets charged.
+                    for (int i=0; i<NUM_ADC;i++) begin  //Only read 32 in parallel
+                        BL_UNGATED[i*(NUM_SL/NUM_ADC)+OFFSET] = 3'b001; //BL selected to VBL+, BL selected to VBL-
+                        SL_UNGATED[i*(NUM_SL/NUM_ADC)+OFFSET] = 3'b000; //SL Left floating and the parasitic cap gets charged.
                     end
                     BL_BIAS_SEL = 3'b000;   //READ     
                     SL_BIAS_SEL = 1'b0;  //READ
                     
                     //Don't add any register for MUX_SEL since we want to MUX it on the same clock edge
                     for (int i=0; i < NUM_ADC;i++) begin
-                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+:16] = (1<<OPCODE[3:0]); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
+                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+OFFSET] = (1<<OPCODE[3:0]); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
                     end
                 end
                 CMD_COMPUTE_MVM: begin
@@ -521,9 +527,6 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
             CMD_WRITE_WEIGHTS: begin
                 //Select the appropriate registers to load inputs, 64 Weights can be selected at once, thus 6 lsbs are ignored
                 WEIGHT_REG[OPCODE[8:6]+:DATAIN_WIDTH] <= DATAIN; 
-            end
-            CMD_WRITE_COLSEL: begin
-                //Select the appropriate registers to load inputs, 64 Weights can be selected at once, thus 6 lsbs are ignored
                 COLSELb[OPCODE[8:6]+:DATAIN_WIDTH] <= DATAIN; 
             end
             CMD_RESET_REGS: begin
