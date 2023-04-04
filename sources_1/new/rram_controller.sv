@@ -10,7 +10,7 @@
 // INSTR (0101) : Write Inputs (Load WL Registers),  10b (START ADDR for WL Register)
 // INSTR (0110) : Read Multiple Devices i.e do MVM, OpCode:- 6b(Segment Width/Number of Rows to read) + 10b (START ADDR for WL)
 // INSTR (0111) : Read ADCoutput, OpCode:- 9b (ADCout Address to Read)
-// INSTR (1000):  MUX between SLs to pass to ADC, OpCode:- 4b (MUX_SEL)
+// INSTR (1000) :  MUX between SLs to pass to ADC, OpCode:- 4b (MUX_SEL)
 // INSTR (1001) : RESET all registers, 
 
 //We need analog biases being bypassed through rram_core_w_controller  
