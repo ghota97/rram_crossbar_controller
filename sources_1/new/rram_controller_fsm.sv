@@ -3,13 +3,13 @@
 //High-level instructions and OpCode coming from instrFIFO or HD Controller 
 //These instructions will be used to transition between FSMs and then issue low-level instructions to rram_controller
 
-// INSTR (0000) : STORE RRAM, {burst_size-3b, col_addr-3b, row_addr-9b}
-// INSTR (0001) : READ_RRAM, {burst_size-3b, col_addr-3b, row_addr-9b}
-// INSTR (0010) : STORE_HAM_WEIGHT, {segment_width-1b}_{col_addr-3b}_{row_addr-9b}
-// INSTR (0011) : HAM_SEG_COMPUTE, {segment_width-1b}_{col_burst_size-3b}_{row_addr-9b}
+// INSTR (0000) : STORE RRAM, {burst-size-3b}_{column_addr-3b}_{row_addr-10b}
+// INSTR (0001) : READ_RRAM, {burst-size-3b}_{column_addr-3b}_{row_addr-10b}
+// INSTR (0010) : STORE_HAM_WEIGHT, {num_write_cycles_3b}_{segment_width-1b}_{col_addr-3b}_{row_addr-9b)
+// INSTR (0011) : HAM_SEG_COMPUTE, {rd_en-1b}_{reset_acc-1b}, {segment_width-1b}_{col_burst_size-4b}_{row_burst_sel-2b}_{row_addr-3b}
 
 
-module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, pop_n_instFIFO, empty_instFIFO, dout_instFIFO, pop_n_iFIFO, empty_iFIFO, dout_iFIFO, push_n_ofifo, full_oFIFO, din_ofifo, WL_SEL, BL_SEL, SL_SEL, SL_MUX_SEL, WL_BIAS_SEL, BL_BIAS_SEL, SL_BIAS_SEL, ADCOUT);
+module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, pop_n_instFIFO, empty_instFIFO, dout_instFIFO, pop_n_iFIFO, empty_iFIFO, dout_iFIFO, push_n_oFIFO, full_oFIFO, din_oFIFO, WL_SEL, BL_SEL, SL_SEL, SL_MUX_SEL, WL_BIAS_SEL, BL_BIAS_SEL, SL_BIAS_SEL, ADCOUT);
    
     parameter NUM_ADC = 32;
     parameter NUM_CORE = 4;
@@ -26,30 +26,38 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     parameter MAX_HD_SEGMENT_COL = 16;
     parameter ADC_WIDTH = 4;
     parameter PHD_ACC_WIDTH = 16;
-
+    
+    input CLK;
+    input CLK_ADC;
+    input CLK_WL;
+    input CLK_BL;
+    input CLK_ADCOUT;
+    //input [$clog2(NUM_CORE)-1:0] CORE_SEL;
+    input [1:0] CORE_SEL;
+    
     //Instruction FIFO 
     output reg pop_n_instFIFO;
     input  empty_instFIFO;
-    input  [INSTR_WIDTH+OPCODE_WIDTH-1] dout_instFIFO;
+    input  [INSTR_WIDTH+OPCODE_WIDTH-1:0] dout_instFIFO;
     
     //input data FIFO
     output reg pop_n_iFIFO;
     input  empty_iFIFO;
-    input  [DATAIN_WIDTH-1-1] dout_iFIFO;
+    input  [DATAIN_WIDTH-1:0] dout_iFIFO;
     
     //output data FIFO
     output reg push_n_oFIFO;
     input  full_oFIFO;
-    input  [DATAIN_WIDTH-1-1] din_oFIFO;
+    output reg [DATAIN_WIDTH-1:0] din_oFIFO;
     
-    output [NUM_WL-1:0] WL_SEL; //Gated WL_SEL fed into the Crossbar
-    output [2:0] BL_SEL [NUM_SL-1:0]; //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
-    output [2:0] SL_SEL [NUM_SL-1:0]; //Gated SL_SEL fed into the Crossbar (3b each)
-    output [NUM_SL-1:0] SL_MUX_SEL;   //MUX SEL to select between 16 adjacent SLs and pass one to the shared ADC.
+    output reg [NUM_WL-1:0] WL_SEL; //Gated WL_SEL fed into the Crossbar
+    output reg [2:0] BL_SEL [NUM_SL-1:0]; //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
+    output reg [2:0] SL_SEL [NUM_SL-1:0]; //Gated SL_SEL fed into the Crossbar (3b each)
+    output reg [NUM_SL-1:0] SL_MUX_SEL;   //MUX SEL to select between 16 adjacent SLs and pass one to the shared ADC.
     
-    output WL_BIAS_SEL; //Selects between WRITE and READ Bias
-    output [2:0] BL_BIAS_SEL; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
-    output SL_BIAS_SEL; //Selects between WRITE and READ for REF
+    output reg WL_BIAS_SEL; //Selects between WRITE and READ Bias
+    output reg [2:0] BL_BIAS_SEL; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
+    output reg SL_BIAS_SEL; //Selects between WRITE and READ for REF
     
     input [ADC_WIDTH-1:0] ADCOUT[NUM_ADC-1:0]; //32 4-b ADCs
     
@@ -58,10 +66,10 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     wire [OPCODE_WIDTH-1:0] OPCODE;
     reg [DATAIN_WIDTH-1:0] DATAIN;
     
-    localparam [INSTR_WIDTH-1:0] INSTR_STORE_RRAM;
-    localparam [INSTR_WIDTH-1:0] INSTR_READ_RRAM;
-    localparam [INSTR_WIDTH-1:0] INSTR_STORE_HAM_WEIGHT;
-    localparam [INSTR_WIDTH-1:0] INSTR_HAM_SEGMENT_COMPUTE;
+    localparam [INSTR_WIDTH-1:0] INSTR_STORE_RRAM = 4'b0100;
+    localparam [INSTR_WIDTH-1:0] INSTR_READ_RRAM = 4'b0101;
+    localparam [INSTR_WIDTH-1:0] INSTR_STORE_HAM_WEIGHT = 4'b0110;
+    localparam [INSTR_WIDTH-1:0] INSTR_HAM_SEGMENT_COMPUTE = 4'b0111;
     
     assign INSTR = dout_instFIFO[INSTR_WIDTH+OPCODE_WIDTH-1-:INSTR_WIDTH];
     assign OPCODE = dout_instFIFO[OPCODE_WIDTH-1:0];
@@ -115,15 +123,8 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     //We always load for 32 classes, takes 8 cycles when segment_width=16, taken 4 otherwise, It takes 4 WR cycles to write one weight (Double-differential encoding) 
     assign NUM_STORE_HAM_WEIGHT_CYCLES = (NUM_HD_CLASSES*SEGMENT_WIDTH/DATAOUT_WIDTH) + 4*(NUM_HD_CLASSES*SEGMENT_WIDTH/DATAOUT_WIDTH)*NUM_WRITE_CYCLES; 
     
-    assign NUM_COMPUTE_HD_CYCLES = ROW_BURST_SIZE_COMPUTE*(COL_BURST_SIZE_COMPUTE+1); //If ROW_BURST_SIZE_COMPUTE=0, we compute only 16 rows, ROW_BURST_SIZE_COMPUTE=1, we compute only 32 rows, ROW_BURST_SIZE_COMPUTE=2, we compute 64 rows at once
+    assign NUM_COMPUTE_HD_CYCLES = 1+ROW_BURST_SIZE_COMPUTE*(COL_BURST_SIZE_COMPUTE+1); //1 Cycle for writing input //If ROW_BURST_SIZE_COMPUTE=0, we compute only 16 rows, ROW_BURST_SIZE_COMPUTE=1, we compute only 32 rows, ROW_BURST_SIZE_COMPUTE=2, we compute 64 rows at once
     assign NUM_READOUT_PHD_CYCLES = (NUM_HD_CLASSES*PHD_ACC_WIDTH)/DATAOUT_WIDTH; //Accumulated result is 16b per class
-    
-    //Row Controller
-    
-    //1st stage registering inputs
-    reg [NUM_WL-1:0] WL_IN_REG; //Registered WL data coming from asic if the address is selected. NUM_WL/2 as we feed ternary inputs
-    //2nd stage just combinational logic
-    reg [NUM_WL-1:0] WL_UNGATED; //Ungated WL i.e. WL input before it's gated with CLK_WL.
     
     
     always @(posedge CLK) begin
@@ -147,7 +148,7 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
         
         COL_BASE_ADDR <= 3'b0;
         COL_BURST_SIZE_WR_RD <= 3'b0;
-        SEGMENT_WIDTH <= 1'b0;
+        SEGMENT_WIDTH <= 5'b0;
         ROW_ADDR_WR_RD <= 10'b0;
         ROW_ADDR_HAM_WEIGHT_STORE <= 9'b0;
         NUM_WRITE_CYCLES <= 3'b0;
@@ -190,14 +191,14 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                             curr_state <= STATE_STORE_HAM_WEIGHT;
                             ROW_ADDR_HAM_WEIGHT_STORE <= OPCODE[8:0];
                             COL_BASE_ADDR <= OPCODE[11:9]; 
-                            SEGMENT_WIDTH <= OPCODE[12];
+                            SEGMENT_WIDTH <= (OPCODE[12])?16:8;
                             NUM_WRITE_CYCLES <= 32*(OPCODE[15:13]+1); //If NUM_WRITE_CYCLES is 7, we want to write for 32*8 cycles
                         end
                         INSTR_HAM_SEGMENT_COMPUTE: begin
                             curr_state <= STATE_HAM_SEGMENT_COMPUTE;
                             ROW_ADDR_HAM_COMPUTE <= OPCODE[2:0];
                             ROW_BURST_SIZE_COMPUTE <= (OPCODE[4:3]==0)?4:((OPCODE[4:3]==1)?2:1);
-                            COL_BURST_SIZE_COMPUTE <= OPCODE[8:5];
+                            COL_BURST_SIZE_COMPUTE <= OPCODE[8:5]; 
                             SEGMENT_WIDTH <= (OPCODE[9])?16:8;
                             RESET_ACC <= OPCODE[10];
                             PHD_READOUT_EN <= OPCODE[11];
@@ -209,6 +210,9 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                     endcase
                 end
             end
+			//1. 10b WRITE_ROW_ADDR is the row address.
+			//2. 3b COL_BASE_ADDR is the base addr for column (can be either 0, 64, 128, .....512-64)
+			//3. 3b COL_BURST_SIZE is the number of 64b packets we are trying to write. If burst_size=000, we only write 1 packet, if it's 111, we write entire 512 columns
             STATE_STORE_RRAM: begin
                  if (counter_fsm == NUM_STORE_WEIGHTS_REG_CYCLES-1) begin
                     //Pop dataFIFO, first load the 64b data and then write 64 columns for 2*255 cycles, Pop new data after erevry (1+2*255) cycles
@@ -219,28 +223,45 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                         if (~empty_iFIFO) begin
                             pop_n_iFIFO <= 1'b0;
                             DATAIN <= dout_iFIFO;
+							LOCAL_INSTR <= CMD_WRITE_WEIGHTS;
+							START_ADDR_SL <= (COL_BASE_ADDR+counter_fsm/(1+2*NUM_WRITE_CYCLES))*DATAIN_WIDTH; //counter_fsm/(1+2*NUM_WRITE_CYCLES) is the counter for burst-size
                             counter_fsm <= counter_fsm+1;
                         end  
                     end else begin //counter_fsm % (1+2*NUM_WRITE_CYCLES) >= 1 && counter_fsm % (1+2*NUM_WRITE_CYCLES) <= 2*NUM_WRITE_CYCLES
                         //Write onto Selected Row and Selected Columns
                         //Send in program_rram command 
-                        counter_fsm <= counter_fsm+1;
+						LOCAL_INSTR <= CMD_PROGRAM_DEVICE; 
+						ROW_ADDR <= ROW_ADDR_WR_RD; 
+						ROW_POL <= 1'b0; //Since We are writing to single row, this will be the 0 throughout 
+						COL_POL <= (((counter_fsm % (1+2*NUM_WRITE_CYCLES))-1) % 2 == 0)?1'b0:1'b1; //Alternate every write cycle, start at COl_POL=0, when counter_fsm % (1+2*NUM_WRITE_CYCLES)=1
+                        counter_fsm <= counter_fsm+1; 
                     end
-                    
                  end else begin //If done, go to STATE_IDLE
                     curr_state <= STATE_IDLE;
                     counter_fsm <= 16'b0;
                  end
                  
             end
+			//1. {row_addr-10b} is the row address.
+			//2. {col_addr-3b} is the base addr for column (can be either 0, 64, 128, .....512-64)
+			//3. 4x{burst_size-3b} is the number of 64b packets we are trying to read. If burst_size=000, we only read 64 columns(4bx64) if it's 111, we read entire 512 columns (4bx512). 
+			//We read all entire 4b from each column to know the precise analog value of resistance
             STATE_READ_RRAM: begin
                 if (counter_fsm == NUM_READ_SINGLE_ADDR_CYCLES-1) begin
                     if (counter_fsm <= (NUM_SL/NUM_ADC)-1) begin
                         //Select Columns one by one in 16 Cycles, Store ADC output into register
                         counter_fsm <= counter_fsm+1;
+						LOCAL_INSTR <= CMD_READ_SINGLE_ADDR;
+						ROW_ADDR <= ROW_ADDR_HAM_WEIGHT_STORE;
+						COL_OFFSET <= counter_fsm;
                     end else begin
                         //Pack outputs into 64b packets and send to oFIFO if not full.
                         counter_fsm <= counter_fsm+1;
+						LOCAL_INSTR <= CMD_READ_ADC_OUT;
+						READOUT_OFFSET_ADDR <= (counter_fsm>(NUM_SL/NUM_ADC))?counter_fsm-(NUM_SL/NUM_ADC):5'b0; 
+						if (~full_oFIFO) begin
+                            push_n_oFIFO <= 1'b0;
+                        end
                     end
                 end else begin //If done, go to STATE_IDLE
                     curr_state <= STATE_IDLE;
@@ -248,23 +269,34 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                 end
             
             end
+			//1. {row_addr-9b} is the row address.
+			//2. {col_addr-3b} is the base addr for column (for segment_width=8b, we can write 32 classes in 4 cycles, base address need to be incremented +128 every cycle and  for segment_width=16b, we can write 32 classes in 8 cycles, base address need to be incremented +64 every cycle)
+			//3. {segment_width-1b} denotes whether we are only 8 columns (segment_width=0) or we use all 16 columns (segment_width=1). If the D = 512, our weight memory layout is 64x8b, If D=1024, our layout is 64x16b   
             STATE_STORE_HAM_WEIGHT: begin
             
                 if (counter_fsm == NUM_STORE_HAM_WEIGHT_CYCLES-1) begin
                     //Pop dataFIFO, first load the 64b data and then write 64 columns for 2*255 cycles, Pop new data after erevry (1+2*NUM_WRITE_CYCLES) cycles
                     
-                    if(counter_fsm % (1 + 2*NUM_WRITE_CYCLES) == 0) begin
+                    if(counter_fsm % (1 + 4*NUM_WRITE_CYCLES) == 0) begin
                         //Pop New data from the FIFO
                         //Send in weights_reg_load command 
                         if (~empty_iFIFO) begin
                             pop_n_iFIFO <= 1'b0;
                             DATAIN <= dout_iFIFO;
+							LOCAL_INSTR <= CMD_WRITE_HAM_WEIGHTS;
+							START_ADDR_SL <= ((NUM_SL/NUM_ADC)/SEGMENT_WIDTH)*(COL_BASE_ADDR+(counter_fsm/(1+4*NUM_WRITE_CYCLES)))*DATAIN_WIDTH; 
+							//If segment width is 8, increment address by 64/8 *16 = 128 
+							//If segment width is 16, increment address by 64/16 *16 = 64
                             counter_fsm <= counter_fsm+1;
                         end  
-                    end else begin //counter_fsm % (1+2*NUM_WRITE_CYCLES) >= 1 && counter_fsm % (1+2*NUM_WRITE_CYCLES) <= 2*NUM_WRITE_CYCLES
+                    end else begin //counter_fsm % (1+4*NUM_WRITE_CYCLES) >= 1 && counter_fsm % (1+4*NUM_WRITE_CYCLES) <= 4*NUM_WRITE_CYCLES
                         //Write onto Selected Row and Selected Columns
                         //Send in program_rram command 
-                        counter_fsm <= counter_fsm+1;
+						LOCAL_INSTR <= CMD_PROGRAM_DEVICE; 
+						ROW_ADDR <= ROW_ADDR_WR_RD; 
+						ROW_POL <= ((((counter_fsm % (1+4*NUM_WRITE_CYCLES))-1) % 4 == 0) || (((counter_fsm % (1+4*NUM_WRITE_CYCLES))-1) % 4 == 1))?1'b0:1'b1; //Alternate every 2 cycles
+						COL_POL <= (((counter_fsm % (1+4*NUM_WRITE_CYCLES))-1) % 2 == 0)?1'b0:1'b1; //Alternate every write cycle, start at COl_POL=0, when counter_fsm % (1+2*NUM_WRITE_CYCLES)=1
+                        counter_fsm <= counter_fsm+1; 
                     end
                     
                  end else begin //If done, go to STATE_IDLE
@@ -273,22 +305,34 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                  end
             
             end
+            //1. {row_addr-3b} is a 3b address (512/64=8 segments along the row dimension) to indicate the row starting address.
+            //2. {row_burst_sel-2b} whether to select 16 rows at once or 32 rows at once or 64 rows at once
+            //3. {col_burst_size-4b} is number of columns we need to select. Burst_size=num_columns to read
+            //4. {segment_width-1b} If 0, we only need to accumulate over 8 columns, otherwise we accumulate over 16 columns. 
+            //5. {reset_acc-1b} Reset the accumulator when this bit is active
+            //6. {rd_en-1b} Readout the Accumulated Output and Send it to FIFO.
             STATE_HAM_SEGMENT_COMPUTE: begin
                 if (~PHD_READOUT_EN) begin //Compute Partial hamming Distance and store in PHD_ACC register
                     if(counter_fsm == NUM_COMPUTE_HD_CYCLES-1) begin
                         //pop iFIFO, fill input REGs, compute HD for ROW_BURST_SIZE_COMPUTE cycles and then again iFIFO
                         
-                        if(counter_fsm % (ROW_BURST_SIZE_COMPUTE) == 0) begin
+                        if(counter_fsm == 0) begin
                         //Pop New data from the iFIFO
                         //Send in inputs_reg_load command 
                         if (~empty_iFIFO) begin
                             pop_n_iFIFO <= 1'b0;
                             DATAIN <= dout_iFIFO;
                             counter_fsm <= counter_fsm+1;
+							LOCAL_INSTR <= CMD_WRITE_INPUTS; 
+							ROW_ADDR_MVM <= ROW_ADDR_HAM_COMPUTE;
                         end  
                     end else begin //counter_fsm % (1+2*NUM_WRITE_CYCLES) >= 1 && counter_fsm % (1+2*NUM_WRITE_CYCLES) <= 2*NUM_WRITE_CYCLES
                         //Write onto Selected Row and Selected Columns
                         //Send in program_rram command 
+						LOCAL_INSTR <= CMD_COMPUTE_MVM;
+						NUM_ROWS_SEGMENT <= DATAIN_WIDTH/ROW_BURST_SIZE_COMPUTE; //If burst_size=4, 4 segments
+						ROW_ADDR_MVM <= (counter_fsm-1)/(1+COL_BURST_SIZE_COMPUTE); //Change row base address based on the burst size
+						COL_OFFSET <= (counter_fsm-1)/ROW_BURST_SIZE_COMPUTE ; //Change Column Address
                         counter_fsm <= counter_fsm+1;
                     end
                     end else begin //If done, go to STATE_IDLE
@@ -316,7 +360,7 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     end
     
     logic [INSTR_WIDTH-1:0] LOCAL_INSTR;
-    //logic [LOCAL_OPCODE_WIDTH-1:0] LOCAL_OPCODE;
+    logic [LOCAL_OPCODE_WIDTH-1:0] LOCAL_OPCODE;
     logic [DATAIN_WIDTH-1:0] LOCAL_DATAIN;
     
     //Replacing the OpCodes from rram_controller to local registers/variables
@@ -329,20 +373,27 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     // LOCAL_INSTR (1000) : MUX between SLs to pass to ADC, OpCode:- 4b (MUX_SEL)
     // LOCAL_INSTR (1001) : RESET all registers, 
     
-    localparam [INSTR_WIDTH-1:0] CMD_WRITE_WEIGHTS    = 4'd0;     // Write Weights, 10b (START ADDR for BL/SL Register), We can write 64 egisters at once
-    reg [8:0] START_ADDR_SL;
-    localparam [INSTR_WIDTH-1:0] CMD_PROGRAM_DEVICE   = 4'd1;     // Program RRAM, OpCode:- 1b (ROW_POL) + 1b (COL_POL) + 10b (ADDR to write)
-    reg [9:0] WRITE_ADDR;
-    reg ROW_POL;
-    reg COL_POL;
-    localparam [INSTR_WIDTH-1:0] CMD_READ_SINGLE_ADDR = 4'd2;     // Read Single Device, OpCode:-  10b (ADDR to read)
-    reg [9:0] READ_ROW_ADDR;
-    reg [3:0] OFFSET;
-    localparam [INSTR_WIDTH-1:0] CMD_WRITE_INPUTS     = 4'd3;     // Write Inputs (WL Registers),  10b (START ADDR for WL Register)
-    localparam [INSTR_WIDTH-1:0] CMD_COMPUTE_MVM      = 4'd4;     // Read Multiple Devices i.e do MVM, OpCode:- 6b(Segment Width/Number of Rows to read, in multiple of 16) + 10b (START ADDR for WL)
-    localparam [INSTR_WIDTH-1:0] CMD_READ_ADCOUT      = 4'd5;     // Read ADCoutput, OpCode:- 9b (ADCout Address to Read)
-    localparam [INSTR_WIDTH-1:0] CMD_RESET_REGS       = 4'd7;     // Reset All Registers
+    localparam [INSTR_WIDTH-1:0] CMD_WRITE_WEIGHTS     = 4'd0;     // Write Weights, 10b (START ADDR for BL/SL Register), We can write 64 egisters at once
+    reg [8:0] START_ADDR_SL; //Start address for WEIGHTS_REG, LOCAL_OPCODE[8:0]
+    localparam [INSTR_WIDTH-1:0] CMD_PROGRAM_DEVICE    = 4'd1;   // Program RRAM, OpCode:- 1b (ROW_POL) + 1b (COL_POL) + 10b (ADDR to write)
+    reg [9:0] ROW_ADDR; //LOCAL_OPCODE[9:0]
+    reg ROW_POL; //LOCAL_OPCODE[10] // If ROW_POL (OPCODE[11]) is 0, Write to the Positive Input Line (+1), ortherwise write to the negative Input line (-1)
+    reg COL_POL; //LOCAL_OPCODE[11] // If ROW_POL (OPCODE[11]) is 0, Write to the BL+ , ortherwise write to BL-
+    localparam [INSTR_WIDTH-1:0] CMD_READ_SINGLE_ADDR  = 4'd2;   // Read Single Device, OpCode:-  10b (ADDR to read), Need extra 4b for MUX_SEL 
+    reg [3:0] COL_OFFSET; //LOCAL_OPCODE[13:10] //COL OFFSET Address to readout from, could be anywhere in between 1 to 16.
+	localparam [INSTR_WIDTH-1:0] CMD_READ_ADC_OUT      = 4'd3;   // Read ADCoutput, OpCode:- 9b (ADCout Address to Read)
+	reg [4:0] READOUT_OFFSET_ADDR; //Offset address for ADCout, we can read 16 columns (16x4b) in one cycle
+	localparam [INSTR_WIDTH-1:0] CMD_WRITE_HAM_WEIGHTS     = 4'd0;   // Write HAM Weights, We can write 64 registers at once but addresses can be interleaved based on col segment size
+    localparam [INSTR_WIDTH-1:0] CMD_WRITE_INPUTS      = 4'd4;   // Write Inputs (WL Registers),  10b (START ADDR for WL Register)
+    localparam [INSTR_WIDTH-1:0] CMD_COMPUTE_MVM       = 4'd5;   // Read Multiple Devices i.e do MVM, OpCode:- 6b(Segment Width/Number of Rows to read, in multiple of 16) + 10b (START ADDR for WL)
+    reg [8:0] ROW_ADDR_MVM;
+	reg [5:0]  NUM_ROWS_SEGMENT; //Whether to select between 16 rows, 32 rows and 64 rows in one computation
+	localparam [INSTR_WIDTH-1:0] CMD_READ_PHDACC_OUT   = 4'd6;   // Read ADCoutput, OpCode:- 9b (ADCout Address to Read)
+	reg [5:0] BASE_CLASS_ADDR;
+	localparam [INSTR_WIDTH-1:0] CMD_RESET_REGS        = 4'd7;   // Reset All Registers
     
+	
+	reg [PHD_ACC_WIDTH-1:0] PHD_ACC [0:NUM_HD_CLASSES-1];
     //Row Controller
     
     //1st stage registering inputs
@@ -362,11 +413,11 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
             CMD_PROGRAM_DEVICE: begin //Controller needs to spend 4 cycles to program each weight, Row and Column Polarity exposed to ASIC Controller, increment ADDR by +2 after each weight programming
                  ////Written Assuming CMD_PROGRAM_DEVICE is active for OpCode[17;10] number of cycles, If ASIC doesn't time this, we can build a timer internally/ build a FSM
                  //If ROW_POL (OPCODE[11]) is 0, Write to the Positive Input Line (+1), ortherwise write to the negative Input line (-1)
-                 WL_UNGATED = (OPCODE[11])?(1<<OPCODE[9:0]+1):(1<<OPCODE[9:0]);  //Programming the array, select one WL at a time to load weights, ROW_POL = OPCODE[11]
-                 WL_BIAS_SEL = 1'b1;
+                 WL_UNGATED = (ROW_POL)?(1<<ROW_ADDR+1):(1<<ROW_ADDR);  //Programming the array, select one WL at a time to load weights, ROW_POL = OPCODE[11]
+                 WL_BIAS_SEL = 1'b1; //Write bias Select
             end
             CMD_READ_SINGLE_ADDR: begin
-                WL_UNGATED = (1<<OPCODE[9:0]);  //Read the Array
+                WL_UNGATED = (1<<ROW_ADDR);  //Read the Array
                 WL_BIAS_SEL = 1'b0;
             end
             CMD_RESET_REGS: begin
@@ -374,11 +425,11 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
             end
             CMD_COMPUTE_MVM: begin
                //OpCode:- 6b(Segment Width/Number of Rows to read) + 10b (START ADDR for WL)
-               if(OPCODE[15:10] == 6'd15) WL_UNGATED[OPCODE[9:0]+:32] = WL_IN_REG[OPCODE[9:0]+:32];  //load the inputs for the required HD distance computation
-               else if (OPCODE[15:10] == 6'd31) WL_UNGATED[OPCODE[9:0]+:64] = WL_IN_REG[OPCODE[9:0]+:64];  //load the inputs for the required HD distance computation
-               else if (OPCODE[15:10] == 6'd63) WL_UNGATED[OPCODE[9:0]+:128] = WL_IN_REG[OPCODE[9:0]+:128];  //load the inputs for the required HD distance computation
+               if(NUM_ROWS_SEGMENT == 6'd15) WL_UNGATED[ROW_ADDR+:32] = WL_IN_REG[ROW_ADDR+:32];  //load the inputs for the required HD distance computation
+               else if (NUM_ROWS_SEGMENT == 6'd31) WL_UNGATED[ROW_ADDR+:64] = WL_IN_REG[ROW_ADDR+:64];  //load the inputs for the required HD distance computation
+               else if (NUM_ROWS_SEGMENT == 6'd63) WL_UNGATED[ROW_ADDR+:128] = WL_IN_REG[ROW_ADDR+:128];  //load the inputs for the required HD distance computation
                
-                WL_BIAS_SEL = 1'b0;
+               WL_BIAS_SEL = 1'b0; //Read bias Seleect
             end
             default:begin
                 //Do Nothing
@@ -395,8 +446,8 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
             CMD_WRITE_INPUTS: begin
                 //Select the appropriate registers to load inputs, 128 WLs (64 inputs) can be selected at once, thus 7 lsbs are ignored
                 for (int i=0; i<DATAIN_WIDTH;i++) begin //Loop, Load DATAIN at even locations, and ~DATAIN at odd locations
-					WL_IN_REG[OPCODE[9:7]+2*i] <= DATAIN[i];
-                    WL_IN_REG[OPCODE[9:7]+2*i+1] <= ~DATAIN[i];
+					WL_IN_REG[2*ROW_ADDR_MVM+2*i] <= DATAIN[i];
+                    WL_IN_REG[2*ROW_ADDR_MVM+2*i+1] <= ~DATAIN[i];
 		        end
             end
             
@@ -439,12 +490,11 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                     SL_UNGATED[i] = 3'b100; //SL selected to reference
          end
            
-         SL_MUX_SEL = 512'b0; //Default MUXSEL
-         DATAOUT = 64'b0; //Dafault DATAOUT
-         BL_BIAS_SEL = 3'b000;   //READ     
-         SL_BIAS_SEL = 1'b0;  //READ
+         SL_MUX_SEL = 512'b0; // Default MUXSEL 
+         BL_BIAS_SEL = 3'b000;   // READ 
+         SL_BIAS_SEL = 1'b0;  // READ 
 		 case (LOCAL_INSTR) 
-             CMD_PROGRAM_DEVICE: begin 
+				CMD_PROGRAM_DEVICE: begin 
                      //Controller needs to spend 4 cycles to program each weight, Row and Column Polarity exposed to ASIC Controller, increment ADDR by +2 after each weight programming
                      //Written Assuming CMD_PROGRAM_DEVICE is active for OpCode[17;10] number of cycles, If ASIC doesn't time this, we can build a timer internally/ build a FSM
                      //If ROW_POL is 1, Write to the Positive Input Line (+1), otherwise write to the negative Input line (-1)
@@ -452,10 +502,10 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                      //When ROW_POL==1 (OPCODE[11]) and COL_POL(OPCODE[10])==0 or ROW_POL==0 and COL_POL==1, We write ~WEIGHT_REG[i]
                      for (int i=0; i<NUM_SL;i++) begin
                         if(~COLSELb[i])
-                            if ((OPCODE[11]==1 && OPCODE[10]==1) || (OPCODE[11]==0 & OPCODE[10]==0)) begin
+                            if ((ROW_POL==1 && COL_POL==1) || (ROW_POL==0 & COL_POL==0)) begin
                                 BL_UNGATED[i] = {1'b0, ~WEIGHT_REG[i], WEIGHT_REG[i]}; //BL selected to VBL+ if WEIGHT=1, BL selected to VBL- if WEIGHT=0
                                 SL_UNGATED[i] = {1'b0, WEIGHT_REG[i], ~WEIGHT_REG[i]}; //SL selected to VBL- if WEIGHT=1, SL selected to VBL+ if WEIGHT=0
-                            end else if ((OPCODE[11]==0 && OPCODE[10]==1) || (OPCODE[11]==1 & OPCODE[10]==0)) begin
+                            end else if ((ROW_POL==0 && COL_POL==1) || (ROW_POL==1 & COL_POL==0)) begin
                                 BL_UNGATED[i] = {1'b0, WEIGHT_REG[i], ~WEIGHT_REG[i]}; //BL selected to VBL- if WEIGHT=1, BL selected to VBL+ if WEIGHT=0
                                 SL_UNGATED[i] = {1'b0, ~WEIGHT_REG[i], WEIGHT_REG[i]}; //SL selected to VBL+ if WEIGHT=1, SL selected to VBL- if WEIGHT=0
                             end
@@ -469,34 +519,35 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                 end
                 CMD_READ_SINGLE_ADDR: begin
                     for (int i=0; i<NUM_ADC;i++) begin  //Only read 32 in parallel
-                        BL_UNGATED[i*(NUM_SL/NUM_ADC)+OFFSET] = 3'b001; //BL selected to VBL+, BL selected to VBL-
-                        SL_UNGATED[i*(NUM_SL/NUM_ADC)+OFFSET] = 3'b000; //SL Left floating and the parasitic cap gets charged.
+                        BL_UNGATED[i*(NUM_SL/NUM_ADC)+COL_OFFSET] = 3'b001; //BL selected to VBL+, BL selected to VBL-
+                        SL_UNGATED[i*(NUM_SL/NUM_ADC)+COL_OFFSET] = 3'b000; //SL Left floating and the parasitic cap gets charged.
                     end
                     BL_BIAS_SEL = 3'b000;   //READ     
                     SL_BIAS_SEL = 1'b0;  //READ
                     
                     //Don't add any register for MUX_SEL since we want to MUX it on the same clock edge
                     for (int i=0; i < NUM_ADC;i++) begin
-                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+OFFSET] = (1<<OPCODE[3:0]); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
+                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+COL_OFFSET] = (1<<COL_OFFSET); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
                     end
                 end
+				CMD_READ_ADC_OUT: begin
+					 for (int i=0; i<(DATAOUT_WIDTH/ADC_WIDTH);i++) begin
+                        din_oFIFO[ADC_WIDTH*i+:ADC_WIDTH] = ADCOUT_reg[DATAOUT_WIDTH*READOUT_OFFSET_ADDR+i]; //DATAOUT_WIDTH(64)*READOUT_OFFSET_ADDR(5b)+i
+                     end
+				end
                 CMD_COMPUTE_MVM: begin
-                   for (int i=0; i<NUM_SL;i++) begin
-                        BL_UNGATED[i] = 3'b001; //BL selected to VBL+, BL selected to VBL-
-                        SL_UNGATED[i] = 3'b000; //SL Left floating and the parasitic cap gets charged.
-                    end
-                    BL_BIAS_SEL = 3'b000;   //READ     
-                    SL_BIAS_SEL = 1'b0;  //READ
-                    
                     //Don't add any register for MUX_SEL since we want to MUX it on the same clock edge
                     for (int i=0; i < NUM_ADC;i++) begin
-                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+:16] = (1<<OPCODE[3:0]); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
+						//Only activate 32 BL at the same time
+						BL_UNGATED[i*(NUM_SL/NUM_ADC)+COL_OFFSET] = 3'b001; //BL selected to VBL+, BL selected to VBL-
+                        SL_UNGATED[i*(NUM_SL/NUM_ADC)+COL_OFFSET] = 3'b000; //SL Left floating and the parasitic cap gets charged.
+                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+:(NUM_SL/NUM_ADC)] = (1<<COL_OFFSET); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
                     end
                 end
                 
-                CMD_READ_ADCOUT: begin //16 registers can be read at once.
-                    for (int i=0; i<16;i++) begin
-                        DATAOUT[4*i+:4] = ADCOUT_reg[OPCODE[8:4]+i]; //Column Address = OPCODE[8:4]+i
+                CMD_READ_PHDACC_OUT: begin //16 registers can be read at once.
+                    for (int i=0; i<(DATAOUT_WIDTH/PHD_ACC_WIDTH);i++) begin
+                        din_oFIFO[PHD_ACC_WIDTH*i+:PHD_ACC_WIDTH] = PHD_ACC[BASE_CLASS_ADDR+i]; //Column Address = OPCODE[8:4]+i
                     end
                 end
                 
@@ -509,7 +560,7 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
                 
                 default:begin
                 //Do Nothing
-                     for (int i=0; i<NUM_SL;i++) begin
+                    for (int i=0; i<NUM_SL;i++) begin
                         BL_UNGATED[i] = 3'b100; //BL selected to reference
                         SL_UNGATED[i] = 3'b100; //SL selected to reference
                     end
@@ -524,10 +575,44 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
         
         case (LOCAL_INSTR)
             
-            CMD_WRITE_WEIGHTS: begin
+			CMD_WRITE_WEIGHTS: begin
                 //Select the appropriate registers to load inputs, 64 Weights can be selected at once, thus 6 lsbs are ignored
-                WEIGHT_REG[OPCODE[8:6]+:DATAIN_WIDTH] <= DATAIN; 
-                COLSELb[OPCODE[8:6]+:DATAIN_WIDTH] <= DATAIN; 
+                WEIGHT_REG[START_ADDR_SL+:DATAIN_WIDTH] <= DATAIN; 
+				for (int i=0; i<NUM_SL;i++) begin
+					if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH)) COLSELb[i] <= 1'b1; //Column unselected for programming
+					else COLSELb[i] <= 1'b0; //Column selected for programming
+				end
+            end
+			
+            CMD_WRITE_WEIGHTS: begin
+                //If segment width is 8, we write only 8 out of 16 Columns
+				//If segment width is 16, we write only 16 out of 16 Columns
+				if (SEGMENT_WIDTH == 8) begin
+					for (int i=0; i<NUM_SL;i++) begin
+						if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH)) begin 
+							COLSELb[i] <= 1'b1; //Column unselected for programming
+						end else begin 
+							if (i[3:0] < 4'h8) begin
+								COLSELb[i] <= 1'b0; //Column selected for programming
+								//If START_ADDR=0, Then ADDR 0...7 maps to DATAIN 0..7, ADDR 16...23 maps to DATAIN 8..15 and so on
+								WEIGHT_REG[i] <= DATAIN[(i-START_ADDR_SL)/2 + (i-START_ADDR_SL)%16]; 
+							end else begin
+								COLSELb[i] <= 1'b1; //Column unselected for programming
+								WEIGHT_REG[i] <= 1'b0; 
+							end
+						end
+					end
+				end else begin
+					for (int i=0; i<NUM_SL;i++) begin
+						if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH)) begin
+							COLSELb[i] <= 1'b1; //Column unselected for programming
+							WEIGHT_REG[i] <= 1'b0; 
+						end else begin 
+							WEIGHT_REG[i] <= DATAIN[i-START_ADDR_SL]; 
+							COLSELb[i] <= 1'b0; //Column selected for programming
+						end
+					end
+				end
             end
             CMD_RESET_REGS: begin
                 for (int i=0; i<NUM_SL;i++) begin
@@ -543,12 +628,17 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     
     reg [3:0] ADCOUT_reg [NUM_SL-1:0];
     always @(posedge CLK_ADCOUT) begin
-        if (INSTR==CMD_MUX_SEL) begin
+        if (INSTR==CMD_COMPUTE_MVM) begin
             for (int i=0; i < NUM_ADC;i++) begin
-                  ADCOUT_reg[i*16+OPCODE[3:0]] <= ADCOUT[i*16+OPCODE[3:0]]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
+				ADCOUT_reg[i*(NUM_SL/NUM_ADC)+COL_OFFSET] <= ADCOUT[i*16+COL_OFFSET]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
+				if (RESET_ACC) PHD_ACC[BASE_CLASS_ADDR+i] <= {NUM_ADC{1'b0}};
+				else PHD_ACC[BASE_CLASS_ADDR+i] <= PHD_ACC[BASE_CLASS_ADDR+i] + ADCOUT[i*16+COL_OFFSET]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
+                
             end
         end
     end
     
     
 endmodule
+
+
