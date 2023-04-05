@@ -9,7 +9,7 @@
 // INSTR (0011) : HAM_SEG_COMPUTE, {rd_en-1b}_{reset_acc-1b}, {segment_width-1b}_{col_burst_size-4b}_{row_burst_sel-2b}_{row_addr-3b}
 
 
-module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, pop_n_instFIFO, empty_instFIFO, dout_instFIFO, pop_n_iFIFO, empty_iFIFO, dout_iFIFO, push_n_oFIFO, full_oFIFO, din_oFIFO, WL_SEL, BL_SEL, SL_SEL, SL_MUX_SEL, WL_BIAS_SEL, BL_BIAS_SEL, SL_BIAS_SEL, ADCOUT);
+module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, pop_n_instFIFO, empty_instFIFO, dout_instFIFO, pop_n_iFIFO, empty_iFIFO, dout_iFIFO, push_n_oFIFO, full_oFIFO, din_oFIFO, WL_SEL, BL_SEL, SL_SEL, SL_MUX_SEL, WL_BIAS_SEL, BL_BIAS_SEL, SL_BIAS_SEL, ADCOUT_THERM);
    
     parameter NUM_ADC = 32;
     parameter NUM_CORE = 4;
@@ -24,6 +24,7 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     parameter DATAOUT_WIDTH = 64;
     parameter NUM_HD_CLASSES = 32;
     parameter MAX_HD_SEGMENT_COL = 16;
+    parameter ADC_WIDTH_THERM = 16;
     parameter ADC_WIDTH = 4;
     parameter PHD_ACC_WIDTH = 16;
     
@@ -59,7 +60,8 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     output reg [2:0] BL_BIAS_SEL; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
     output reg SL_BIAS_SEL; //Selects between WRITE and READ for REF
     
-    input [ADC_WIDTH-1:0] ADCOUT[NUM_ADC-1:0]; //32 4-b ADCs
+    input [ADC_WIDTH_THERM-1:0] ADCOUT_THERM[NUM_ADC-1:0]; //32 4-b ADCs
+    reg [ADC_WIDTH-1:0] ADCOUT[NUM_ADC-1:0]; //32 4-b ADCs
     
     
     wire [INSTR_WIDTH-1:0] INSTR;
@@ -626,9 +628,33 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
         endcase
     end
     
+     //Thermometer to binary conversion using priority encoder
+    always_comb begin
+        for (int i=0; i < NUM_ADC;i++) begin
+            casex(ADCOUT_THERM[i])
+                16'b0000000000000000: ADCOUT[i] <= 4'b0000;
+                16'b000000000000001x: ADCOUT[i] <= 4'b0001;
+                16'b00000000000001xx: ADCOUT[i] <= 4'b0010;
+                16'b0000000000001xxx: ADCOUT[i] <= 4'b0011;
+                16'b000000000001xxxx: ADCOUT[i] <= 4'b0100;
+                16'b00000000001xxxxx: ADCOUT[i] <= 4'b0101;
+                16'b0000000001xxxxxx: ADCOUT[i] <= 4'b0110;
+                16'b000000001xxxxxxx: ADCOUT[i] <= 4'b0111;
+                16'b00000001xxxxxxxx: ADCOUT[i] <= 4'b1000;
+                16'b0000001xxxxxxxxx: ADCOUT[i] <= 4'b1001;
+                16'b000001xxxxxxxxxx: ADCOUT[i] <= 4'b1010;
+                16'b00001xxxxxxxxxxx: ADCOUT[i] <= 4'b1011;
+                16'b0001xxxxxxxxxxxx: ADCOUT[i] <= 4'b1000;
+                16'b001xxxxxxxxxxxxx: ADCOUT[i] <= 4'b1001;
+                16'b01xxxxxxxxxxxxxx: ADCOUT[i] <= 4'b1010;
+                16'b1xxxxxxxxxxxxxxx: ADCOUT[i] <= 4'b1011;
+            endcase 
+        end
+    end
+    
     reg [3:0] ADCOUT_reg [NUM_SL-1:0];
     always @(posedge CLK_ADCOUT) begin
-        if (INSTR==CMD_COMPUTE_MVM) begin
+        if (INSTR==CMD_COMPUTE_MVM || INSTR==CMD_READ_SINGLE_ADDR) begin
             for (int i=0; i < NUM_ADC;i++) begin
 				ADCOUT_reg[i*(NUM_SL/NUM_ADC)+COL_OFFSET] <= ADCOUT[i*16+COL_OFFSET]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
 				if (RESET_ACC) PHD_ACC[BASE_CLASS_ADDR+i] <= {NUM_ADC{1'b0}};
