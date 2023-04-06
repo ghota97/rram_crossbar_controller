@@ -385,14 +385,14 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     reg [3:0] COL_OFFSET; //LOCAL_OPCODE[13:10] //COL OFFSET Address to readout from, could be anywhere in between 1 to 16.
 	localparam [INSTR_WIDTH-1:0] CMD_READ_ADC_OUT      = 4'd3;   // Read ADCoutput, OpCode:- 9b (ADCout Address to Read)
 	reg [4:0] READOUT_OFFSET_ADDR; //Offset address for ADCout, we can read 16 columns (16x4b) in one cycle
-	localparam [INSTR_WIDTH-1:0] CMD_WRITE_HAM_WEIGHTS     = 4'd0;   // Write HAM Weights, We can write 64 registers at once but addresses can be interleaved based on col segment size
-    localparam [INSTR_WIDTH-1:0] CMD_WRITE_INPUTS      = 4'd4;   // Write Inputs (WL Registers),  10b (START ADDR for WL Register)
-    localparam [INSTR_WIDTH-1:0] CMD_COMPUTE_MVM       = 4'd5;   // Read Multiple Devices i.e do MVM, OpCode:- 6b(Segment Width/Number of Rows to read, in multiple of 16) + 10b (START ADDR for WL)
+	localparam [INSTR_WIDTH-1:0] CMD_WRITE_HAM_WEIGHTS = 4'd4;   // Write HAM Weights, We can write 64 registers at once but addresses can be interleaved based on col segment size
+    localparam [INSTR_WIDTH-1:0] CMD_WRITE_INPUTS      = 4'd5;   // Write Inputs (WL Registers),  10b (START ADDR for WL Register)
+    localparam [INSTR_WIDTH-1:0] CMD_COMPUTE_MVM       = 4'd6;   // Read Multiple Devices i.e do MVM, OpCode:- 6b(Segment Width/Number of Rows to read, in multiple of 16) + 10b (START ADDR for WL)
     reg [8:0] ROW_ADDR_MVM;
 	reg [5:0]  NUM_ROWS_SEGMENT; //Whether to select between 16 rows, 32 rows and 64 rows in one computation
-	localparam [INSTR_WIDTH-1:0] CMD_READ_PHDACC_OUT   = 4'd6;   // Read ADCoutput, OpCode:- 9b (ADCout Address to Read)
+	localparam [INSTR_WIDTH-1:0] CMD_READ_PHDACC_OUT   = 4'd7;   // Read ADCoutput, OpCode:- 9b (ADCout Address to Read)
 	reg [5:0] BASE_CLASS_ADDR;
-	localparam [INSTR_WIDTH-1:0] CMD_RESET_REGS        = 4'd7;   // Reset All Registers
+	localparam [INSTR_WIDTH-1:0] CMD_RESET_REGS        = 4'd8;   // Reset All Registers
     
 	
 	reg [PHD_ACC_WIDTH-1:0] PHD_ACC [0:NUM_HD_CLASSES-1];
@@ -448,8 +448,8 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
             CMD_WRITE_INPUTS: begin
                 //Select the appropriate registers to load inputs, 128 WLs (64 inputs) can be selected at once, thus 7 lsbs are ignored
                 for (int i=0; i<DATAIN_WIDTH;i++) begin //Loop, Load DATAIN at even locations, and ~DATAIN at odd locations
-					WL_IN_REG[2*ROW_ADDR_MVM+2*i] <= DATAIN[i];
-                    WL_IN_REG[2*ROW_ADDR_MVM+2*i+1] <= ~DATAIN[i];
+					WL_IN_REG[2*ROW_ADDR_MVM+2*i] <= dout_iFIFO[i];
+                    WL_IN_REG[2*ROW_ADDR_MVM+2*i+1] <= ~dout_iFIFO[i];
 		        end
             end
             
@@ -579,25 +579,31 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
             
 			CMD_WRITE_WEIGHTS: begin
                 //Select the appropriate registers to load inputs, 64 Weights can be selected at once, thus 6 lsbs are ignored
-                WEIGHT_REG[START_ADDR_SL+:DATAIN_WIDTH] <= DATAIN; 
+                
 				for (int i=0; i<NUM_SL;i++) begin
-					if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH)) COLSELb[i] <= 1'b1; //Column unselected for programming
-					else COLSELb[i] <= 1'b0; //Column selected for programming
+					if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH)) begin
+					   COLSELb[i] <= 1'b1; //Column unselected for programming
+					end else begin
+					   COLSELb[i] <= 1'b0; //Column selected for programming
+					   WEIGHT_REG[i] <= dout_iFIFO[i]; 
+					   WEIGHT_REG[i] <= 1'b0; 
+					end
 				end
             end
 			
-            CMD_WRITE_WEIGHTS: begin
+            CMD_WRITE_HAM_WEIGHTS: begin
                 //If segment width is 8, we write only 8 out of 16 Columns
 				//If segment width is 16, we write only 16 out of 16 Columns
 				if (SEGMENT_WIDTH == 8) begin
 					for (int i=0; i<NUM_SL;i++) begin
 						if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH)) begin 
 							COLSELb[i] <= 1'b1; //Column unselected for programming
+							WEIGHT_REG[i] <= 1'b0; 
 						end else begin 
 							if (i[3:0] < 4'h8) begin
 								COLSELb[i] <= 1'b0; //Column selected for programming
 								//If START_ADDR=0, Then ADDR 0...7 maps to DATAIN 0..7, ADDR 16...23 maps to DATAIN 8..15 and so on
-								WEIGHT_REG[i] <= DATAIN[(i-START_ADDR_SL)/2 + (i-START_ADDR_SL)%16]; 
+								WEIGHT_REG[i] <= dout_iFIFO[(i-START_ADDR_SL)/2 + (i-START_ADDR_SL)%16]; 
 							end else begin
 								COLSELb[i] <= 1'b1; //Column unselected for programming
 								WEIGHT_REG[i] <= 1'b0; 
