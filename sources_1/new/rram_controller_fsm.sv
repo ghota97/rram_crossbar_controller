@@ -24,14 +24,14 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
     parameter DATAOUT_WIDTH = 64;
     parameter NUM_HD_CLASSES = 32;
     parameter MAX_HD_SEGMENT_COL = 16;
-    parameter ADC_WIDTH_THERM = 16;
+    parameter ADC_WIDTH_THERM = 15;
     parameter ADC_WIDTH = 4;
     parameter PHD_ACC_WIDTH = 16;
     
     input CLK;
     input CLK_ADC;
-    input CLK_WL;
-    input CLK_BL;
+    input [NUM_WL-1:0] CLK_WL;
+    input [NUM_SL-1:0] CLK_BL;
     input CLK_ADCOUT;
     //input [$clog2(NUM_CORE)-1:0] CORE_SEL;
     input [1:0] CORE_SEL;
@@ -631,24 +631,31 @@ module rram_controller_fsm(CLK, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, p
      //Thermometer to binary conversion using priority encoder
     always_comb begin
         for (int i=0; i < NUM_ADC;i++) begin
+            //Full adder based encoder
+            ADCOUT[i] = ADCOUT_THERM[i][0]+ADCOUT_THERM[i][1]+ADCOUT_THERM[i][2]+ADCOUT_THERM[i][3]+ADCOUT_THERM[i][4]
+                        +ADCOUT_THERM[i][5]+ADCOUT_THERM[i][6]+ADCOUT_THERM[i][7]+ADCOUT_THERM[i][8]+ADCOUT_THERM[i][9]
+                        +ADCOUT_THERM[i][10]+ADCOUT_THERM[i][11]+ADCOUT_THERM[i][12]+ADCOUT_THERM[i][13]+ADCOUT_THERM[i][14] ;
+                     
+           /* 
             casex(ADCOUT_THERM[i])
-                16'b0000000000000000: ADCOUT[i] <= 4'b0000;
-                16'b000000000000001x: ADCOUT[i] <= 4'b0001;
-                16'b00000000000001xx: ADCOUT[i] <= 4'b0010;
-                16'b0000000000001xxx: ADCOUT[i] <= 4'b0011;
-                16'b000000000001xxxx: ADCOUT[i] <= 4'b0100;
-                16'b00000000001xxxxx: ADCOUT[i] <= 4'b0101;
-                16'b0000000001xxxxxx: ADCOUT[i] <= 4'b0110;
-                16'b000000001xxxxxxx: ADCOUT[i] <= 4'b0111;
-                16'b00000001xxxxxxxx: ADCOUT[i] <= 4'b1000;
-                16'b0000001xxxxxxxxx: ADCOUT[i] <= 4'b1001;
-                16'b000001xxxxxxxxxx: ADCOUT[i] <= 4'b1010;
-                16'b00001xxxxxxxxxxx: ADCOUT[i] <= 4'b1011;
-                16'b0001xxxxxxxxxxxx: ADCOUT[i] <= 4'b1000;
-                16'b001xxxxxxxxxxxxx: ADCOUT[i] <= 4'b1001;
-                16'b01xxxxxxxxxxxxxx: ADCOUT[i] <= 4'b1010;
-                16'b1xxxxxxxxxxxxxxx: ADCOUT[i] <= 4'b1011;
+                16'b0000000000000000: ADCOUT[i] = 4'b0000;
+                16'b000000000000001x: ADCOUT[i] = 4'b0001;
+                16'b00000000000001xx: ADCOUT[i] = 4'b0010;
+                16'b0000000000001xxx: ADCOUT[i] = 4'b0011;
+                16'b000000000001xxxx: ADCOUT[i] = 4'b0100;
+                16'b00000000001xxxxx: ADCOUT[i] = 4'b0101;
+                16'b0000000001xxxxxx: ADCOUT[i] = 4'b0110;
+                16'b000000001xxxxxxx: ADCOUT[i] = 4'b0111;
+                16'b00000001xxxxxxxx: ADCOUT[i] = 4'b1000;
+                16'b0000001xxxxxxxxx: ADCOUT[i] = 4'b1001;
+                16'b000001xxxxxxxxxx: ADCOUT[i] = 4'b1010;
+                16'b00001xxxxxxxxxxx: ADCOUT[i] = 4'b1011;
+                16'b0001xxxxxxxxxxxx: ADCOUT[i] = 4'b1000;
+                16'b001xxxxxxxxxxxxx: ADCOUT[i] = 4'b1001;
+                16'b01xxxxxxxxxxxxxx: ADCOUT[i] = 4'b1010;
+                16'b1xxxxxxxxxxxxxxx: ADCOUT[i] = 4'b1011;
             endcase 
+          */  
         end
     end
     
