@@ -85,12 +85,12 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     // INSTR (0010) : STORE_HAM_WEIGHT, {segment_width-1b}_{col_addr-3b}_{row_addr-9b}
     // INSTR (0011) : HAM_SEG_COMPUTE, {segment_width-1b}_{col_burst_size-3b}_{row_addr-9b}
     
-    localparam [2:0] STATE_RESET = 4'd0;
-    localparam [2:0] STATE_IDLE = 4'd1;
-    localparam [2:0] STATE_STORE_RRAM = 4'd2;
-    localparam [2:0] STATE_READ_RRAM = 4'd3;
-    localparam [2:0] STATE_STORE_HAM_WEIGHT = 4'd4; 
-    localparam [2:0] STATE_HAM_SEGMENT_COMPUTE = 4'd5;
+    localparam [3:0] STATE_RESET = 4'd0;
+    localparam [3:0] STATE_IDLE = 4'd1;
+    localparam [3:0] STATE_STORE_RRAM = 4'd2;
+    localparam [3:0] STATE_READ_RRAM = 4'd3;
+    localparam [3:0] STATE_STORE_HAM_WEIGHT = 4'd4; 
+    localparam [3:0] STATE_HAM_SEGMENT_COMPUTE = 4'd5;
     
     reg [2:0] curr_state; //FSM STATE
    
@@ -102,10 +102,10 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     //reg done_store_weight, done_read_single_addr, done_store_ham_weight, done_compute_hd, done_hd_acc_rdout;
    
     wire [14:0] NUM_STORE_WEIGHTS_CYCLES; //number of cycles to STORE data into the WEIGHT_REGISTER and COLSELb_REGISTER, and finish writing to RRAM
-    wire [2:0] NUM_READ_SINGLE_ADDR_CYCLES; //number of read cycles to readout one row of data from RRAM and quantizing over ADC
+    wire [6:0] NUM_READ_SINGLE_ADDR_CYCLES; //number of read cycles to readout one row of data from RRAM and quantizing over ADC
     wire [15:0] NUM_STORE_HAM_WEIGHT_CYCLES; //number of cycles to STORE hamming weights into the WEIGHT_REGISTER and COLSELb_REGISTER
-    wire [3:0] NUM_COMPUTE_HD_CYCLES; //Number of cycles to compute per instructions, this depends on number of columns to be selected
-    wire [3:0] NUM_READOUT_PHD_CYCLES; //Number of cycles to readout partial hamming distance
+    wire [6:0] NUM_COMPUTE_HD_CYCLES; //Number of cycles to compute per instructions, this depends on number of columns to be selected
+    wire [6:0] NUM_READOUT_PHD_CYCLES; //Number of cycles to readout partial hamming distance
     
     reg [2:0] COL_BASE_ADDR; //3b Col base address for storing, reading, and storing HD weights
     reg [2:0] COL_BURST_SIZE_WR_RD; //Number of Columns we want to compute over
@@ -279,7 +279,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
 			//2. 3b COL_BASE_ADDR is the base addr for column (can be either 0, 64, 128, .....512-64)
 			//3. 3b COL_BURST_SIZE is the number of 64b packets we are trying to write. If burst_size=000, we only write 1 packet, if it's 111, we write entire 512 columns
             STATE_STORE_RRAM: begin
-                 if (counter_fsm != NUM_STORE_WEIGHTS_CYCLES-1) begin
+                 if (counter_fsm != NUM_STORE_WEIGHTS_CYCLES) begin
                     //Pop dataFIFO, first load the 64b data and then write 64 columns for 2*255 cycles, Pop new data after erevry (1+2*255) cycles
                     
                     if(counter_fsm % (1+2*NUM_WRITE_CYCLES) == 0) begin
@@ -312,7 +312,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
 			//3. 4x{burst_size-3b} is the number of 64b packets we are trying to read. If burst_size=000, we only read 64 columns(4bx64) if it's 111, we read entire 512 columns (4bx512). 
 			//We read all entire 4b from each column to know the precise analog value of resistance
             STATE_READ_RRAM: begin
-                if (counter_fsm != NUM_READ_SINGLE_ADDR_CYCLES-1) begin
+                if (counter_fsm != NUM_READ_SINGLE_ADDR_CYCLES) begin
                     if (counter_fsm <= (NUM_SL/NUM_ADC)-1) begin
                         //Select Columns one by one in 16 Cycles, Store ADC output into register
                         counter_fsm <= counter_fsm+1;
@@ -323,7 +323,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
                         //Pack outputs into 64b packets and send to oFIFO if not full.
                         counter_fsm <= counter_fsm+1;
 						LOCAL_INSTR <= CMD_READ_ADC_OUT;
-						READOUT_OFFSET_ADDR <= (counter_fsm>(NUM_SL/NUM_ADC))?counter_fsm-(NUM_SL/NUM_ADC):5'b0; 
+						READOUT_OFFSET_ADDR <= (counter_fsm>(NUM_SL/NUM_ADC)-1)?counter_fsm-(NUM_SL/NUM_ADC):5'b0; 
 						if (~full_oFIFO) begin
                             push_n_oFIFO <= 1'b0;
                         end
@@ -340,7 +340,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
             //4. {NUM_WRITE_CYCLES-3b}: number of cycles to wtite = 32xNUM_WRITE_CYCLES
             STATE_STORE_HAM_WEIGHT: begin
             
-                if (counter_fsm != NUM_STORE_HAM_WEIGHT_CYCLES-1) begin
+                if (counter_fsm != NUM_STORE_HAM_WEIGHT_CYCLES) begin
                     //Pop dataFIFO, first load the 64b data and then write 64 columns for 2*255 cycles, Pop new data after erevry (1+2*NUM_WRITE_CYCLES) cycles
                     
                     if(counter_fsm % (1+4*NUM_WRITE_CYCLES) == 0) begin
@@ -381,7 +381,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
             //TODO:- Merge readout_en instruction with compute instruction
             STATE_HAM_SEGMENT_COMPUTE: begin
                 if (~PHD_READOUT_EN) begin //Compute Partial hamming Distance and store in PHD_ACC register
-                    if(counter_fsm != NUM_COMPUTE_HD_CYCLES-1) begin
+                    if(counter_fsm != NUM_COMPUTE_HD_CYCLES) begin
                         //pop iFIFO, fill input REGs, compute HD for ROW_BURST_SIZE_COMPUTE cycles and then again iFIFO
                         
                         if(counter_fsm == 0) begin
@@ -408,7 +408,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
                         counter_fsm <= 16'b0;
                  end
                 end else begin  //READOUT the outputs from ACC Register
-                    if(counter_fsm != NUM_READOUT_PHD_CYCLES-1) begin
+                    if(counter_fsm != NUM_READOUT_PHD_CYCLES) begin
                         //Readout 16b PHD ACC value from 32 Classes and push to oFIFO
                         if (~full_oFIFO) begin
                             push_n_oFIFO <= 1'b0;
@@ -517,7 +517,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
          end
            
          SL_MUX_SEL = {NUM_SL{1'b0}}; // Default MUXSEL 
-         
+          
 		 case (LOCAL_INSTR) 
 				CMD_PROGRAM_DEVICE: begin 
                      //Controller needs to spend 4 cycles to program each weight, Row and Column Polarity exposed to ASIC Controller, increment ADDR by +2 after each weight programming
@@ -548,7 +548,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
                     
                     //Don't add any register for MUX_SEL since we want to MUX it on the same clock edge
                     for (int i=0; i < NUM_ADC;i++) begin
-                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+COL_OFFSET] = (1<<COL_OFFSET); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
+                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+:(NUM_SL/NUM_ADC)] = (1<<COL_OFFSET); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
                     end
                 end
 				CMD_READ_ADC_OUT: begin
@@ -654,11 +654,12 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     always_comb begin
         for (int i=0; i < NUM_ADC;i++) begin
             //Full adder based encoder
-            ADCOUT[i] = ADCOUT_THERM[i][0]+ADCOUT_THERM[i][1]+ADCOUT_THERM[i][2]+ADCOUT_THERM[i][3]+ADCOUT_THERM[i][4]
-                        +ADCOUT_THERM[i][5]+ADCOUT_THERM[i][6]+ADCOUT_THERM[i][7]+ADCOUT_THERM[i][8]+ADCOUT_THERM[i][9]
-                        +ADCOUT_THERM[i][10]+ADCOUT_THERM[i][11]+ADCOUT_THERM[i][12]+ADCOUT_THERM[i][13]+ADCOUT_THERM[i][14] ;
-                     
-           /* 
+               ADCOUT[i] = ADCOUT_THERM[i][0]+ADCOUT_THERM[i][1]+ADCOUT_THERM[i][2]+ADCOUT_THERM[i][3]+ADCOUT_THERM[i][4]
+                           +ADCOUT_THERM[i][5]+ADCOUT_THERM[i][6]+ADCOUT_THERM[i][7]+ADCOUT_THERM[i][8]+ADCOUT_THERM[i][9]
+                            +ADCOUT_THERM[i][10]+ADCOUT_THERM[i][11]+ADCOUT_THERM[i][12]+ADCOUT_THERM[i][13]+ADCOUT_THERM[i][14] ;
+            
+          end         
+           /*
             casex(ADCOUT_THERM[i])
                 16'b0000000000000000: ADCOUT[i] = 4'b0000;
                 16'b000000000000001x: ADCOUT[i] = 4'b0001;
@@ -678,16 +679,16 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
                 16'b1xxxxxxxxxxxxxxx: ADCOUT[i] = 4'b1011;
             endcase 
           */  
-        end
+        
     end
     
     reg [ADC_WIDTH-1:0] ADCOUT_reg [NUM_SL-1:0];
     always @(posedge CLK_ADCOUT) begin
-        if (INSTR==CMD_COMPUTE_MVM || INSTR==CMD_READ_SINGLE_ADDR) begin
+        if (LOCAL_INSTR==CMD_COMPUTE_MVM || LOCAL_INSTR==CMD_READ_SINGLE_ADDR) begin
             for (int i=0; i < NUM_ADC;i++) begin
-				ADCOUT_reg[i*(NUM_SL/NUM_ADC)+COL_OFFSET] <= ADCOUT[i*16+COL_OFFSET]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
+				ADCOUT_reg[i*(NUM_SL/NUM_ADC)+COL_OFFSET] <= ADCOUT[i]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
 				if (RESET_ACC) PHD_ACC[BASE_CLASS_ADDR+i] <= {NUM_ADC{1'b0}};
-				else PHD_ACC[BASE_CLASS_ADDR+i] <= PHD_ACC[BASE_CLASS_ADDR+i] + ADCOUT[i*16+COL_OFFSET]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
+				else PHD_ACC[BASE_CLASS_ADDR+i] <= PHD_ACC[BASE_CLASS_ADDR+i] + ADCOUT[i]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
                 
             end
         end

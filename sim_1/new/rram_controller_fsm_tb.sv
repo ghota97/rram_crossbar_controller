@@ -58,7 +58,7 @@ module rram_controller_fsm_tb;
     logic SL_BIAS_SEL; //Selects between WRITE and READ for REF
 
     logic [ADC_WIDTH_THERM-1:0] ADCOUT_THERM[NUM_ADC-1:0]; //32 4-b ADCs
-    logic [ADC_WIDTH-1:0] ADCOUT[NUM_ADC-1:0]; //32 4-b ADCs
+    
 
  rram_controller_fsm controller_fsm
     (
@@ -105,6 +105,7 @@ module rram_controller_fsm_tb;
       CLK_BL = 1'b0;
       CLK_WL = 1'b0;
       CLK_ADC = 1'b0;
+      CLK_ADCOUT = 1'b0;
       //Instruction FIFO 
       empty_instFIFO <= 1'b1;
       dout_instFIFO <= 20'b0;
@@ -114,7 +115,9 @@ module rram_controller_fsm_tb;
       dout_iFIFO <= 64'b0;
   
       full_oFIFO <= 1'b1;
-      
+      for (int i=0; i < NUM_ADC;i++) begin
+        ADCOUT_THERM[i] = 15'b010101010101001; //Output from array
+      end
       #20 reset = 1'b0;
       #100; 
       /*
@@ -135,19 +138,29 @@ module rram_controller_fsm_tb;
       dout_instFIFO <= 20'h4_C6FF; //INSTR:-0100, ROW_ADDR=2FF(767), COL_ADDR=64*1, BURST_SIZE = 6
       dout_iFIFO <= 64'hEEEE_CCCC;
       */
-      
+      /*
       //Store Hamming Weight instruction
       empty_instFIFO <= 1'b0;
-      dout_instFIFO <= 20'h6_1000; //INSTR:-0100, ROW_ADDR=0, COL_ADDR=0, SEGMENT_WIDTH=16
+      dout_instFIFO <= 20'h6_1000; //INSTR:-0110, ROW_ADDR=0, COL_ADDR=0, SEGMENT_WIDTH=16
       empty_iFIFO <= 1'b0;
       dout_iFIFO <= 64'hABCD_ABCD_ABCD_ABCD;
       full_oFIFO <= 1'b1;
       #19000;
       empty_instFIFO <= 1'b0;
-      dout_instFIFO <= 20'h6_0000; //INSTR:-0100, ROW_ADDR=0, COL_ADDR=0, SEGMENT_WIDTH=8
+      dout_instFIFO <= 20'h6_0000; //INSTR:-0110, ROW_ADDR=0, COL_ADDR=0, SEGMENT_WIDTH=8
       empty_iFIFO <= 1'b0;
       dout_iFIFO <= 64'hABCD_ABCD_ABCD_ABCD;
       full_oFIFO <= 1'b1;
+      */
+      //READ instruction
+      for (int i=0; i < NUM_ADC;i++) begin
+        ADCOUT_THERM[i] = 15'b010101010101001; //Output from array
+      end
+      empty_instFIFO <= 1'b0;
+      dout_instFIFO <= 20'h5_0000; //INSTR:-0101, ROW_ADDR=0, COL_ADDR=0, BURST_SIZE=0
+      empty_iFIFO <= 1'b0;
+      dout_iFIFO <= 64'hABCD_ABCD_ABCD_ABCD;
+      full_oFIFO <= 1'b0;
       
     end
     
@@ -159,7 +172,9 @@ module rram_controller_fsm_tb;
   	 end
   	 always begin
   	     #11 CLK_ADC = !CLK_ADC;
-   		 #9 CLK_ADC = !CLK_ADC;
+  	     CLK_ADCOUT = !CLK_ADCOUT;
+   		 #9 CLK_ADCOUT = !CLK_ADCOUT;
+   		 
   	 end
  
 endmodule
