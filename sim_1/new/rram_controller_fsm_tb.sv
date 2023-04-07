@@ -116,7 +116,9 @@ module rram_controller_fsm_tb;
       full_oFIFO <= 1'b1;
       
       #20 reset = 1'b0;
-      #100; //Store instruction
+      #100; 
+      /*
+      //Store instruction
       empty_instFIFO <= 1'b0;
       dout_instFIFO <= 20'h4_0000; //INSTR:-0100, ROW_ADDR=0, COL_ADDR=0, BURST_SIZE = 0
       empty_iFIFO <= 1'b0;
@@ -132,7 +134,21 @@ module rram_controller_fsm_tb;
       #35000;
       dout_instFIFO <= 20'h4_C6FF; //INSTR:-0100, ROW_ADDR=2FF(767), COL_ADDR=64*1, BURST_SIZE = 6
       dout_iFIFO <= 64'hEEEE_CCCC;
-    
+      */
+      
+      //Store Hamming Weight instruction
+      empty_instFIFO <= 1'b0;
+      dout_instFIFO <= 20'h6_1000; //INSTR:-0100, ROW_ADDR=0, COL_ADDR=0, SEGMENT_WIDTH=16
+      empty_iFIFO <= 1'b0;
+      dout_iFIFO <= 64'hABCD_ABCD_ABCD_ABCD;
+      full_oFIFO <= 1'b1;
+      #19000;
+      empty_instFIFO <= 1'b0;
+      dout_instFIFO <= 20'h6_0000; //INSTR:-0100, ROW_ADDR=0, COL_ADDR=0, SEGMENT_WIDTH=8
+      empty_iFIFO <= 1'b0;
+      dout_iFIFO <= 64'hABCD_ABCD_ABCD_ABCD;
+      full_oFIFO <= 1'b1;
+      
     end
     
      always begin

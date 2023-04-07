@@ -103,7 +103,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
    
     wire [14:0] NUM_STORE_WEIGHTS_CYCLES; //number of cycles to STORE data into the WEIGHT_REGISTER and COLSELb_REGISTER, and finish writing to RRAM
     wire [2:0] NUM_READ_SINGLE_ADDR_CYCLES; //number of read cycles to readout one row of data from RRAM and quantizing over ADC
-    wire [9:0] NUM_STORE_HAM_WEIGHT_CYCLES; //number of cycles to STORE hamming weights into the WEIGHT_REGISTER and COLSELb_REGISTER
+    wire [15:0] NUM_STORE_HAM_WEIGHT_CYCLES; //number of cycles to STORE hamming weights into the WEIGHT_REGISTER and COLSELb_REGISTER
     wire [3:0] NUM_COMPUTE_HD_CYCLES; //Number of cycles to compute per instructions, this depends on number of columns to be selected
     wire [3:0] NUM_READOUT_PHD_CYCLES; //Number of cycles to readout partial hamming distance
     
@@ -124,7 +124,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     assign NUM_READ_SINGLE_ADDR_CYCLES = (NUM_SL/NUM_ADC) + ADC_WIDTH*(COL_BURST_SIZE_WR_RD+1); //16 cycles to readout all columns, 4b output from each column.
     
     //We always load for 32 classes, takes 8 cycles when segment_width=16, taken 4 otherwise, It takes 4 WR cycles to write one weight (Double-differential encoding) 
-    assign NUM_STORE_HAM_WEIGHT_CYCLES = (NUM_HD_CLASSES*SEGMENT_WIDTH/DATAOUT_WIDTH) + 4*(NUM_HD_CLASSES*SEGMENT_WIDTH/DATAOUT_WIDTH)*NUM_WRITE_CYCLES; 
+    assign NUM_STORE_HAM_WEIGHT_CYCLES = (NUM_HD_CLASSES*SEGMENT_WIDTH)/DATAOUT_WIDTH + 4*((NUM_HD_CLASSES*SEGMENT_WIDTH)/DATAOUT_WIDTH)*NUM_WRITE_CYCLES; 
     
     assign NUM_COMPUTE_HD_CYCLES = 1+ROW_BURST_SIZE_COMPUTE*(COL_BURST_SIZE_COMPUTE+1); //1 Cycle for writing input //If ROW_BURST_SIZE_COMPUTE=0, we compute only 16 rows, ROW_BURST_SIZE_COMPUTE=1, we compute only 32 rows, ROW_BURST_SIZE_COMPUTE=2, we compute 64 rows at once
     assign NUM_READOUT_PHD_CYCLES = (NUM_HD_CLASSES*PHD_ACC_WIDTH)/DATAOUT_WIDTH; //Accumulated result is 16b per class
@@ -211,7 +211,13 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
         PHD_READOUT_EN <= 1'b0; 
         
         LOCAL_INSTR <= CMD_RESET_REGS;
-     end else begin   
+     end else begin
+     
+        counter_fsm <= 16'b0;
+        pop_n_instFIFO <= 1'b1;
+        pop_n_iFIFO <= 1'b1;
+        push_n_oFIFO <= 1'b1;
+          
         case (curr_state)
             STATE_RESET: begin
                 curr_state <= STATE_IDLE;
@@ -331,12 +337,13 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
 			//1. {row_addr-9b} is the row address.
 			//2. {col_addr-3b} is the base addr for column (for segment_width=8b, we can write 32 classes in 4 cycles, base address need to be incremented +128 every cycle and  for segment_width=16b, we can write 32 classes in 8 cycles, base address need to be incremented +64 every cycle)
 			//3. {segment_width-1b} denotes whether we are only 8 columns (segment_width=0) or we use all 16 columns (segment_width=1). If the D = 512, our weight memory layout is 64x8b, If D=1024, our layout is 64x16b   
+            //4. {NUM_WRITE_CYCLES-3b}: number of cycles to wtite = 32xNUM_WRITE_CYCLES
             STATE_STORE_HAM_WEIGHT: begin
             
                 if (counter_fsm != NUM_STORE_HAM_WEIGHT_CYCLES-1) begin
                     //Pop dataFIFO, first load the 64b data and then write 64 columns for 2*255 cycles, Pop new data after erevry (1+2*NUM_WRITE_CYCLES) cycles
                     
-                    if(counter_fsm % (1 + 4*NUM_WRITE_CYCLES) == 0) begin
+                    if(counter_fsm % (1+4*NUM_WRITE_CYCLES) == 0) begin
                         //Pop New data from the FIFO
                         //Send in weights_reg_load command 
                         if (~empty_iFIFO) begin
@@ -424,9 +431,10 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     
     //Combinational Logic
     always_comb begin
-        
-        WL_SEL = (LOCAL_INSTR==CMD_COMPUTE_MVM)?(WL_UNGATED & {NUM_WL{CLK_WL}}):WL_UNGATED; //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-        
+    
+         for (int i=0; i<NUM_WL;i++) begin
+            WL_SEL = (LOCAL_INSTR==CMD_COMPUTE_MVM)?(WL_UNGATED[i] & CLK_WL):WL_UNGATED[i]; //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+         end
         //This default condition needs to be specified to avoid latches and result in clean synthesis.
         WL_UNGATED = {NUM_WL{1'b0}};  //None of the WL selected
         
@@ -434,7 +442,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
             CMD_PROGRAM_DEVICE: begin //Controller needs to spend 4 cycles to program each weight, Row and Column Polarity exposed to ASIC Controller, increment ADDR by +2 after each weight programming
                  ////Written Assuming CMD_PROGRAM_DEVICE is active for OpCode[17;10] number of cycles, If ASIC doesn't time this, we can build a timer internally/ build a FSM
                  //If ROW_POL (OPCODE[11]) is 0, Write to the Positive Input Line (+1), ortherwise write to the negative Input line (-1)
-                 WL_UNGATED = (ROW_POL)?(1<<ROW_ADDR+1):(1<<ROW_ADDR);  //Programming the array, select one WL at a time to load weights, ROW_POL = OPCODE[11]
+                 WL_UNGATED = (ROW_POL)?((1<<ROW_ADDR)+1):(1<<ROW_ADDR);  //Programming the array, select one WL at a time to load weights, ROW_POL = OPCODE[11]
                  
             end
             CMD_READ_SINGLE_ADDR: begin
@@ -492,14 +500,14 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     always_comb begin
          for (int i=0; i<NUM_SL;i++) begin
                 //BL Controls
-				BL_SEL[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][0] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][0]; //BLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				BL_SEL[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][1] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][1]; //BLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				BL_SEL[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][2] & {NUM_SL{CLK_BL}}):BL_UNGATED[i][2]; //BLref SEL  //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][0] & CLK_BL):BL_UNGATED[i][0]; //BLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][1] & CLK_BL):BL_UNGATED[i][1]; //BLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][2] & CLK_BL):BL_UNGATED[i][2]; //BLref SEL  //Only gate the Clock when MVM is done, Don't gate it when programming/reading
 				
 				//SL Controls
-				SL_SEL[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][0] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][0]; //SLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				SL_SEL[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][1] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][1]; //SLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				SL_SEL[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][2] & {NUM_SL{CLK_BL}}):SL_UNGATED[i][2]; //SLref SEL //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][0] & CLK_BL):SL_UNGATED[i][0]; //SLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][1] & CLK_BL):SL_UNGATED[i][1]; //SLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][2] & CLK_BL):SL_UNGATED[i][2]; //SLref SEL //Only gate the Clock when MVM is done, Don't gate it when programming/reading
 		 end
 		 
 		 //This default condition needs to be specified to avoid latches and result in clean synthesis.
@@ -604,14 +612,14 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
 				//If segment width is 16, we write only 16 out of 16 Columns
 				if (SEGMENT_WIDTH == 8) begin
 					for (int i=0; i<NUM_SL;i++) begin
-						if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH-1)) begin 
+						if ((i < START_ADDR_SL) || (i > START_ADDR_SL+2*DATAIN_WIDTH-1)) begin 
 							COLSELb[i] <= 1'b1; //Column unselected for programming
 							WEIGHT_REG[i] <= 1'b0; 
 						end else begin 
 							if (i[3:0] < 4'h8) begin
 								COLSELb[i] <= 1'b0; //Column selected for programming
 								//If START_ADDR=0, Then ADDR 0...7 maps to DATAIN 0..7, ADDR 16...23 maps to DATAIN 8..15 and so on
-								WEIGHT_REG[i] <= DATAIN[(i-START_ADDR_SL)/2 + (i-START_ADDR_SL)%16]; 
+								WEIGHT_REG[i] <= DATAIN[8*((i-START_ADDR_SL)/16) + ((i-START_ADDR_SL)%16)]; 
 							end else begin
 								COLSELb[i] <= 1'b1; //Column unselected for programming
 								WEIGHT_REG[i] <= 1'b0; 
@@ -620,7 +628,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
 					end
 				end else begin
 					for (int i=0; i<NUM_SL;i++) begin
-						if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH)) begin
+						if ((i < START_ADDR_SL) || (i > START_ADDR_SL+DATAIN_WIDTH-1)) begin
 							COLSELb[i] <= 1'b1; //Column unselected for programming
 							WEIGHT_REG[i] <= 1'b0; 
 						end else begin 
