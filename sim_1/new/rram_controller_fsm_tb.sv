@@ -26,6 +26,7 @@ module rram_controller_fsm_tb;
     
     
     logic CLK;
+    logic reset;
     logic CLK_ADC;
     logic CLK_WL;
     logic CLK_BL;
@@ -62,6 +63,7 @@ module rram_controller_fsm_tb;
  rram_controller_fsm controller_fsm
     (
     .CLK(CLK),
+    .reset(reset),
     .CLK_ADC(CLK_ADC),
     .CLK_WL(CLK_WL),
     .CLK_BL(CLK_BL),
@@ -99,6 +101,7 @@ module rram_controller_fsm_tb;
 
     initial begin
       CLK = 1'b0;
+      reset = 1'b1;
       CLK_BL = 1'b0;
       CLK_WL = 1'b0;
       CLK_ADC = 1'b0;
@@ -112,6 +115,7 @@ module rram_controller_fsm_tb;
   
       full_oFIFO <= 1'b1;
       
+      #20 reset = 1'b0;
       #100; //Store instruction
       empty_instFIFO <= 1'b0;
       dout_instFIFO <= 20'h4_0000; //INSTR:-0100, ROW_ADDR=0, COL_ADDR=0, BURST_SIZE = 0
@@ -121,6 +125,12 @@ module rram_controller_fsm_tb;
       
       #200;
       dout_instFIFO <= 20'h4_440A; //INSTR:-0100, ROW_ADDR=10, COL_ADDR=64*1, BURST_SIZE = 2
+      dout_iFIFO <= 64'hEEEE_CCCC;
+      #200;
+      dout_iFIFO <= 64'hBABA_CABA;
+      
+      #35000;
+      dout_instFIFO <= 20'h4_C6FF; //INSTR:-0100, ROW_ADDR=2FF(767), COL_ADDR=64*1, BURST_SIZE = 6
       dout_iFIFO <= 64'hEEEE_CCCC;
     
     end
