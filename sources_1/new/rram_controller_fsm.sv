@@ -114,7 +114,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     reg [8:0] ROW_ADDR_HAM_WEIGHT_STORE; //9b row addresss to write hamming distance weights, since each input bit is mapped to 2 differential lines
     reg [8:0] NUM_WRITE_CYCLES; //Number of WRITE cycles needed for RRAM
     reg [2:0] ROW_ADDR_HAM_COMPUTE; //Base Row address for starting the HD Computation
-    reg [1:0] ROW_BURST_SIZE_COMPUTE; //Number of rows we want to activate at the same time (16 inputs/32 inputs/64 inputs)
+    reg [2:0] ROW_BURST_SIZE_COMPUTE; //Number of rows we want to activate at the same time (16 inputs/32 inputs/64 inputs)
     reg [3:0] COL_BURST_SIZE_COMPUTE; //Number of Columns we want to compute over
     reg RESET_ACC; //reset the accumulator when starting a new PHD calculation
     reg PHD_READOUT_EN; //Whenever HD sends an instruction to readout the accumulated partial hamming distance
@@ -217,6 +217,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
         pop_n_instFIFO <= 1'b1;
         pop_n_iFIFO <= 1'b1;
         push_n_oFIFO <= 1'b1;
+        RESET_ACC <= 1'b0; 
           
         case (curr_state)
             STATE_RESET: begin
@@ -402,6 +403,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
 						ROW_ADDR_MVM <= (counter_fsm-1)/(1+COL_BURST_SIZE_COMPUTE); //Change row base address based on the burst size
 						COL_OFFSET <= (counter_fsm-1)/ROW_BURST_SIZE_COMPUTE ; //Change Column Address
                         counter_fsm <= counter_fsm+1;
+                        
                     end
                     end else begin //If done, go to STATE_IDLE
                         curr_state <= STATE_IDLE;
@@ -454,10 +456,12 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
             end
             CMD_COMPUTE_MVM: begin
                //OpCode:- 6b(Segment Width/Number of Rows to read) + 10b (START ADDR for WL)
-               if(NUM_ROWS_SEGMENT == 6'd15) WL_UNGATED[ROW_ADDR+:32] = WL_IN_REG[ROW_ADDR+:32];  //load the inputs for the required HD distance computation
-               else if (NUM_ROWS_SEGMENT == 6'd31) WL_UNGATED[ROW_ADDR+:64] = WL_IN_REG[ROW_ADDR+:64];  //load the inputs for the required HD distance computation
-               else if (NUM_ROWS_SEGMENT == 6'd63) WL_UNGATED[ROW_ADDR+:128] = WL_IN_REG[ROW_ADDR+:128];  //load the inputs for the required HD distance computation
-               
+               WL_UNGATED = WL_IN_REG;
+               /*
+               if(NUM_ROWS_SEGMENT == 6'd15) WL_UNGATED[ROW_ADDR_MVM+:32] = WL_IN_REG[ROW_ADDR_MVM+:32];  //load the inputs for the required HD distance computation
+               else if (NUM_ROWS_SEGMENT == 6'd31) WL_UNGATED[ROW_ADDR_MVM+:64] = WL_IN_REG[ROW_ADDR_MVM+:64];  //load the inputs for the required HD distance computation
+               else if (NUM_ROWS_SEGMENT == 6'd63) WL_UNGATED[ROW_ADDR_MVM+:128] = WL_IN_REG[ROW_ADDR_MVM+:128];  //load the inputs for the required HD distance computation
+               */
             end
             default:begin
                 //Do Nothing
@@ -656,7 +660,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
             //Full adder based encoder
                ADCOUT[i] = ADCOUT_THERM[i][0]+ADCOUT_THERM[i][1]+ADCOUT_THERM[i][2]+ADCOUT_THERM[i][3]+ADCOUT_THERM[i][4]
                            +ADCOUT_THERM[i][5]+ADCOUT_THERM[i][6]+ADCOUT_THERM[i][7]+ADCOUT_THERM[i][8]+ADCOUT_THERM[i][9]
-                            +ADCOUT_THERM[i][10]+ADCOUT_THERM[i][11]+ADCOUT_THERM[i][12]+ADCOUT_THERM[i][13]+ADCOUT_THERM[i][14] ;
+                           +ADCOUT_THERM[i][10]+ADCOUT_THERM[i][11]+ADCOUT_THERM[i][12]+ADCOUT_THERM[i][13]+ADCOUT_THERM[i][14] ;
             
           end         
            /*
@@ -684,15 +688,18 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     
     reg [ADC_WIDTH-1:0] ADCOUT_reg [NUM_SL-1:0];
     always @(posedge CLK_ADCOUT) begin
-        if (LOCAL_INSTR==CMD_COMPUTE_MVM || LOCAL_INSTR==CMD_READ_SINGLE_ADDR) begin
+        if (RESET_ACC) begin 
+            for (int i=0; i < NUM_ADC;i++) begin
+                PHD_ACC[i] <= {NUM_ADC{1'b0}};
+            end
+        end else if ((curr_state==STATE_READ_RRAM && LOCAL_INSTR == CMD_COMPUTE_MVM) || (curr_state==STATE_HAM_SEGMENT_COMPUTE && LOCAL_INSTR == CMD_COMPUTE_MVM)) begin
+        
             for (int i=0; i < NUM_ADC;i++) begin
 				ADCOUT_reg[i*(NUM_SL/NUM_ADC)+COL_OFFSET] <= ADCOUT[i]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
-				if (RESET_ACC) PHD_ACC[BASE_CLASS_ADDR+i] <= {NUM_ADC{1'b0}};
-				else PHD_ACC[BASE_CLASS_ADDR+i] <= PHD_ACC[BASE_CLASS_ADDR+i] + ADCOUT[i]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
-                
+				PHD_ACC[i] <= PHD_ACC[i] + ADCOUT[i]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
             end
-        end
-    end
+         end
+     end
     
     
 endmodule

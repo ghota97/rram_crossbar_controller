@@ -152,6 +152,7 @@ module rram_controller_fsm_tb;
       dout_iFIFO <= 64'hABCD_ABCD_ABCD_ABCD;
       full_oFIFO <= 1'b1;
       */
+      /*
       //READ instruction
       for (int i=0; i < NUM_ADC;i++) begin
         ADCOUT_THERM[i] = 15'b010101010101001; //Output from array
@@ -161,7 +162,13 @@ module rram_controller_fsm_tb;
       empty_iFIFO <= 1'b0;
       dout_iFIFO <= 64'hABCD_ABCD_ABCD_ABCD;
       full_oFIFO <= 1'b0;
-      
+      */
+      //HAM_SEGMENT_COMPUTE instruction
+      empty_instFIFO <= 1'b0;
+      dout_instFIFO <= 20'h7_0600; //INSTR:-0111, rden(1b)=0, reset-acc(1b)=1, segment_size(1b) =1, col_burst(4b)=0, row_burst(2b)=0, row_addr(3b) = 0
+      empty_iFIFO <= 1'b0;
+      dout_iFIFO <= 64'hABCD_ABCD_ABCD_ABCD;
+      full_oFIFO <= 1'b0;
     end
     
      always begin
