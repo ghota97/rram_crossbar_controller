@@ -127,7 +127,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     assign NUM_STORE_HAM_WEIGHT_CYCLES = (NUM_HD_CLASSES*SEGMENT_WIDTH)/DATAOUT_WIDTH + 4*((NUM_HD_CLASSES*SEGMENT_WIDTH)/DATAOUT_WIDTH)*NUM_WRITE_CYCLES; 
     
     assign NUM_COMPUTE_HD_CYCLES = 1+ROW_BURST_SIZE_COMPUTE*(COL_BURST_SIZE_COMPUTE+1); //1 Cycle for writing input //If ROW_BURST_SIZE_COMPUTE=0, we compute only 16 rows, ROW_BURST_SIZE_COMPUTE=1, we compute only 32 rows, ROW_BURST_SIZE_COMPUTE=2, we compute 64 rows at once
-    assign NUM_READOUT_PHD_CYCLES = (NUM_HD_CLASSES*PHD_ACC_WIDTH)/DATAOUT_WIDTH; //Accumulated result is 16b per class
+    assign NUM_READOUT_PHD_CYCLES = PHD_READOUT_EN*(NUM_HD_CLASSES*PHD_ACC_WIDTH)/DATAOUT_WIDTH; //Accumulated result is 16b per class
     
     
     logic [INSTR_WIDTH-1:0] LOCAL_INSTR;
@@ -381,11 +381,11 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
             
             //TODO:- Merge readout_en instruction with compute instruction
             STATE_HAM_SEGMENT_COMPUTE: begin
-                if (~PHD_READOUT_EN) begin //Compute Partial hamming Distance and store in PHD_ACC register
-                    if(counter_fsm != NUM_COMPUTE_HD_CYCLES) begin
+              if (counter_fsm != NUM_COMPUTE_HD_CYCLES+NUM_READOUT_PHD_CYCLES) begin //Compute Partial hamming Distance and store in PHD_ACC register
+                if(counter_fsm < NUM_COMPUTE_HD_CYCLES) begin
                         //pop iFIFO, fill input REGs, compute HD for ROW_BURST_SIZE_COMPUTE cycles and then again iFIFO
                         
-                        if(counter_fsm == 0) begin
+                    if(counter_fsm == 0) begin
                         //Pop New data from the iFIFO
                         //Send in inputs_reg_load command 
                         if (~empty_iFIFO) begin
@@ -393,35 +393,33 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
                             DATAIN <= dout_iFIFO;
                             counter_fsm <= counter_fsm+1;
 							LOCAL_INSTR <= CMD_WRITE_INPUTS; 
-							ROW_ADDR_MVM <= ROW_ADDR_HAM_COMPUTE;
+							ROW_ADDR_MVM <= 64*ROW_ADDR_HAM_COMPUTE;
+							NUM_ROWS_SEGMENT <= DATAIN_WIDTH/ROW_BURST_SIZE_COMPUTE; //If burst_size=4, 4 segments
                         end  
                     end else begin //counter_fsm % (1+2*NUM_WRITE_CYCLES) >= 1 && counter_fsm % (1+2*NUM_WRITE_CYCLES) <= 2*NUM_WRITE_CYCLES
                         //Write onto Selected Row and Selected Columns
                         //Send in program_rram command 
 						LOCAL_INSTR <= CMD_COMPUTE_MVM;
-						NUM_ROWS_SEGMENT <= DATAIN_WIDTH/ROW_BURST_SIZE_COMPUTE; //If burst_size=4, 4 segments
-						ROW_ADDR_MVM <= (counter_fsm-1)/(1+COL_BURST_SIZE_COMPUTE); //Change row base address based on the burst size
+						ROW_ADDR_MVM <= 64*ROW_ADDR_HAM_COMPUTE+NUM_ROWS_SEGMENT*((counter_fsm-1)/(1+COL_BURST_SIZE_COMPUTE)); //Change row base address based on the burst size
 						COL_OFFSET <= (counter_fsm-1)/ROW_BURST_SIZE_COMPUTE ; //Change Column Address
                         counter_fsm <= counter_fsm+1;
                         
                     end
-                    end else begin //If done, go to STATE_IDLE
-                        curr_state <= STATE_IDLE;
-                        counter_fsm <= 16'b0;
-                 end
+              
                 end else begin  //READOUT the outputs from ACC Register
-                    if(counter_fsm != NUM_READOUT_PHD_CYCLES) begin
+                        counter_fsm <= counter_fsm+1;
                         //Readout 16b PHD ACC value from 32 Classes and push to oFIFO
-                        if (~full_oFIFO) begin
+                        LOCAL_INSTR <= CMD_READ_PHDACC_OUT;
+						//READOUT_OFFSET_ADDR <= (counter_fsm>(NUM_SL/NUM_ADC)-1)?counter_fsm-(NUM_SL/NUM_ADC):5'b0; 
+						BASE_CLASS_ADDR <= (counter_fsm-NUM_COMPUTE_HD_CYCLES)*((DATAOUT_WIDTH/PHD_ACC_WIDTH)) ; // 4 classes can be read each cycle
+						if (~full_oFIFO) begin
                             push_n_oFIFO <= 1'b0;
-                            //din_oFIFO //prepare din_oFIFO
                         end
-                    end else begin //If done, go to STATE_IDLE
+                end
+            end else begin //If done, go to STATE_IDLE
                         curr_state <= STATE_IDLE;
                         counter_fsm <= 16'b0;
-                    end
-                
-                end
+            end
             end
             default:begin
                 curr_state <= STATE_RESET;
@@ -456,7 +454,10 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
             end
             CMD_COMPUTE_MVM: begin
                //OpCode:- 6b(Segment Width/Number of Rows to read) + 10b (START ADDR for WL)
-               WL_UNGATED = WL_IN_REG;
+               for (int i=0; i <NUM_WL; i++) begin
+                    if (i >= ROW_ADDR_MVM && i < ROW_ADDR_MVM+NUM_ROWS_SEGMENT) WL_UNGATED[i] = WL_IN_REG[i];
+                    else WL_UNGATED[i] = 1'b0;
+               end
                /*
                if(NUM_ROWS_SEGMENT == 6'd15) WL_UNGATED[ROW_ADDR_MVM+:32] = WL_IN_REG[ROW_ADDR_MVM+:32];  //load the inputs for the required HD distance computation
                else if (NUM_ROWS_SEGMENT == 6'd31) WL_UNGATED[ROW_ADDR_MVM+:64] = WL_IN_REG[ROW_ADDR_MVM+:64];  //load the inputs for the required HD distance computation
@@ -570,7 +571,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
                     end
                 end
                 
-                CMD_READ_PHDACC_OUT: begin //16 registers can be read at once.
+                CMD_READ_PHDACC_OUT: begin //4 classes can be read at once.
                     for (int i=0; i<(DATAOUT_WIDTH/PHD_ACC_WIDTH);i++) begin
                         din_oFIFO[PHD_ACC_WIDTH*i+:PHD_ACC_WIDTH] = PHD_ACC[BASE_CLASS_ADDR+i]; //Column Address = OPCODE[8:4]+i
                     end
