@@ -63,6 +63,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
     
     input [ADC_WIDTH_THERM-1:0] ADCOUT_THERM[NUM_ADC-1:0]; //32 4-b ADCs
     reg [ADC_WIDTH-1:0] ADCOUT[NUM_ADC-1:0]; //32 4-b ADCs
+    reg [ADC_WIDTH-1:0] ADCOUT_reg [NUM_SL-1:0];
     
     
     wire [INSTR_WIDTH-1:0] INSTR;
@@ -687,7 +688,7 @@ module rram_controller_fsm(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE
         
     end
     
-    reg [ADC_WIDTH-1:0] ADCOUT_reg [NUM_SL-1:0];
+   
     always @(posedge CLK_ADCOUT) begin
         if (RESET_ACC) begin 
             for (int i=0; i < NUM_ADC;i++) begin
