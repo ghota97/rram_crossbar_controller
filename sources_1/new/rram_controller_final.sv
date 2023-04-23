@@ -564,8 +564,8 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
          end
            
          SL_MUX_SEL = {NUM_SL{1'b0}}; // Default MUXSEL 
-         din_oFIFO_ext <= {DATAOUT_WIDTH{1'b0}};
-         din_oFIFO_hd <= {DATAOUT_WIDTH{1'b0}};
+         din_oFIFO_ext = {DATAOUT_WIDTH{1'b0}};
+         din_oFIFO_hd = {DATAOUT_WIDTH{1'b0}};
 		 case (LOCAL_INSTR) 
 				CMD_PROGRAM_DEVICE: begin 
                      //Controller needs to spend 4 cycles to program each weight, Row and Column Polarity exposed to ASIC Controller, increment ADDR by +2 after each weight programming
