@@ -9,7 +9,7 @@
 // INSTR (0011) : HAM_SEG_COMPUTE, {rd_en-1b}_{reset_acc-1b}, {segment_width-1b}_{col_burst_size-4b}_{row_burst_sel-2b}_{row_addr-3b}
 
 
-module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CORE_SEL, pop_n_instFIFO_ext, empty_instFIFO_ext, dout_instFIFO_ext, pop_n_instFIFO_hd, empty_instFIFO_hd, dout_instFIFO_hd, pop_n_iFIFO_ext, empty_iFIFO_ext, dout_iFIFO_ext, pop_n_iFIFO_hd, empty_iFIFO_hd, dout_iFIFO_hd, push_n_oFIFO_ext, full_oFIFO_ext, din_oFIFO_ext, push_n_oFIFO_hd, full_oFIFO_hd, din_oFIFO_hd, WL_SEL, BL_SEL, SL_SEL, SL_MUX_SEL, WL_BIAS_SEL, BL_BIAS_SEL, SL_BIAS_SEL, ADCOUT_THERM);
+module rram_controller_final(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, empty_instFIFO_ext, dout_instFIFO_ext, pop_n_instFIFO_hd, empty_instFIFO_hd, dout_instFIFO_hd, pop_n_iFIFO_ext, empty_iFIFO_ext, dout_iFIFO_ext, pop_n_iFIFO_hd, empty_iFIFO_hd, dout_iFIFO_hd, push_n_oFIFO_ext, full_oFIFO_ext, din_oFIFO_ext, push_n_oFIFO_hd, full_oFIFO_hd, din_oFIFO_hd, WL_SEL, BL_SEL, SL_SEL, SL_MUX_SEL, WL_BIAS_SEL, BL_BIAS_SEL, SL_BIAS_SEL, ADCOUT_THERM);
    
     parameter NUM_ADC = 32;
     parameter NUM_CORE = 4;
@@ -30,10 +30,8 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
     
     input CLK;
     input reset;
-    input CLK_ADC;
-    input [NUM_WL-1:0] CLK_WL;
-    input [NUM_SL-1:0] CLK_BL;
-    input CLK_ADCOUT;
+    input CLK_WL;
+    input CLK_BL;
     //input [$clog2(NUM_CORE)-1:0] CORE_SEL;
     input [1:0] CORE_SEL;
     
@@ -67,12 +65,16 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
     output reg [DATAIN_WIDTH-1:0] din_oFIFO_hd;
     
     output reg [NUM_WL-1:0] WL_SEL; //Gated WL_SEL fed into the Crossbar
-    output reg [2:0] BL_SEL [NUM_SL-1:0]; //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
-    output reg [2:0] SL_SEL [NUM_SL-1:0]; //Gated SL_SEL fed into the Crossbar (3b each)
+    output reg [NUM_SL-1:0] BLplus_SEL ; //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
+    output reg [NUM_SL-1:0] BLminus_SEL ;
+    output reg [NUM_SL-1:0] BLref_SEL ;
+    output reg [NUM_SL-1:0] SLplus_SEL ;
+    output reg [NUM_SL-1:0] SLminus_SEL ;
+    output reg [NUM_SL-1:0] SLref_SEL ;
     output reg [NUM_SL-1:0] SL_MUX_SEL;   //MUX SEL to select between 16 adjacent SLs and pass one to the shared ADC.
     
     output reg WL_BIAS_SEL; //Selects between WRITE and READ Bias
-    output reg [2:0] BL_BIAS_SEL; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
+    output reg BL_BIAS_SEL; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
     output reg SL_BIAS_SEL; //Selects between WRITE and READ for REF
     
     input [ADC_WIDTH_THERM-1:0] ADCOUT_THERM[NUM_ADC-1:0]; //32 4-b ADCs
@@ -83,6 +85,37 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
     wire [INSTR_WIDTH-1:0] INSTR;
     wire [OPCODE_WIDTH-1:0] OPCODE;
     reg [DATAIN_WIDTH-1:0] DATAIN;
+    
+    reg [NUM_WL-1:0] WL_SEL_prereg; //Gated WL_SEL to be fed into the Crossbar
+    reg [2:0] BL_SEL_prereg [NUM_SL-1:0]; //Gated BL_SEL to be fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
+    reg [2:0] SL_SEL_prereg [NUM_SL-1:0]; //Gated SL_SEL to be fed into the Crossbar (3b each)
+    reg [NUM_SL-1:0] SL_MUX_SEL_prereg;   //MUX SEL to select between 16 adjacent SLs and pass one to the shared ADC.
+    
+    reg WL_BIAS_SEL_prereg; //Selects between WRITE and READ Bias
+    reg BL_BIAS_SEL_prereg; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
+    reg SL_BIAS_SEL_prereg; //Selects between WRITE and READ for REF
+    
+    //Sequential Logic, Registered WL_SEL, BL_SEL, SL_SEL
+    always @(posedge CLK) begin
+         WL_BIAS_SEL <= WL_BIAS_SEL_prereg;
+         BL_BIAS_SEL <= WL_BIAS_SEL_prereg;
+         SL_BIAS_SEL <= SL_BIAS_SEL_prereg;
+         for (int i=0; i<NUM_WL;i++) begin
+            WL_SEL[i] <= WL_SEL_prereg[i];
+         end
+         for (int i=0; i<NUM_SL;i++) begin
+                //BL Controls
+				BLplus_SEL[i] <= BL_SEL_prereg[i][0];
+				BLminus_SEL[i] <= BL_SEL_prereg[i][1];
+				BLref_SEL[i] <= BL_SEL_prereg[i][2];
+				
+				//SL Controls
+				SLplus_SEL[i] <= SL_SEL_prereg[i][0];
+				SLminus_SEL[i] <= SL_SEL_prereg[i][1];
+				SLref_SEL[i] <= SL_SEL_prereg[i][2];
+				SL_MUX_SEL[i] <= SL_MUX_SEL_prereg[i];
+		 end
+    end
     
     localparam [INSTR_WIDTH-1:0] INSTR_STORE_RRAM = 4'b0100;
     localparam [INSTR_WIDTH-1:0] INSTR_READ_RRAM = 4'b0101;
@@ -107,11 +140,12 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
     localparam [3:0] STATE_STORE_HAM_WEIGHT = 4'd4; 
     localparam [3:0] STATE_HAM_SEGMENT_COMPUTE = 4'd5;
     
-    reg [2:0] curr_state; //FSM STATE
+    reg [3:0] curr_state; //FSM STATE
    
     //Counters to keep track of states
     reg [8:0] counter_fsm; //Now 10b, previously 16bit 
     reg [8:0] wr_cycle_ctr; //counter to keep track of NUM_WRITE_CYCLEs in STORE instructions
+    
     
     //Separate Counters and done signals needed when multiple FSMs operating in parallel, here we didn't perform any pipelining.
     //reg [9:0] ctr_store_weight, ctr_read_single_addr, ctr_store_ham_weight, ctr_compute_hd, ctr_hd_acc_rdout; 
@@ -142,7 +176,8 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
     //We always load for 32 classes, takes 8 cycles when segment_width=16, taken 4 otherwise, It takes 4 WR cycles to write one weight (Double-differential encoding) 
     assign NUM_STORE_HAM_WEIGHT_CYCLES = (NUM_HD_CLASSES*SEGMENT_WIDTH)/DATAOUT_WIDTH + 4*((NUM_HD_CLASSES*SEGMENT_WIDTH)/DATAOUT_WIDTH); 
     
-    assign NUM_COMPUTE_HD_CYCLES = 1+ROW_BURST_SIZE_COMPUTE*(COL_BURST_SIZE_COMPUTE+1); //1 Cycle for writing input //If ROW_BURST_SIZE_COMPUTE=0, we compute only 16 rows, ROW_BURST_SIZE_COMPUTE=1, we compute only 32 rows, ROW_BURST_SIZE_COMPUTE=2, we compute 64 rows at once
+    assign NUM_COMPUTE_HD_CYCLES = (COL_BURST_SIZE_COMPUTE+1); //1 Cycle for writing input //If ROW_BURST_SIZE_COMPUTE=0, we compute only 16 rows, ROW_BURST_SIZE_COMPUTE=1, we compute only 32 rows, ROW_BURST_SIZE_COMPUTE=2, we compute 64 rows at once
+    reg [3:0] row_busrt_ctr; //Counter to count upto (1+2*ROW_BURST_SIZE_COMPUTE)
     assign NUM_READOUT_PHD_CYCLES = PHD_READOUT_EN*(NUM_HD_CLASSES*PHD_ACC_WIDTH)/DATAOUT_WIDTH; //Accumulated result is 16b per class
     
     
@@ -232,6 +267,7 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
         RESET_ACC <= 1'b0; 
         PHD_READOUT_EN <= 1'b0; 
         wr_cycle_ctr <= 9'b0;
+        row_burst_ctr <= 4'b0;
         LOCAL_INSTR <= CMD_RESET_REGS;
      end else begin
      
@@ -265,18 +301,18 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
                             COL_BASE_ADDR <= OPCODE[12:10]; 
                             COL_BURST_SIZE_WR_RD <= OPCODE[15:13];
                             NUM_WRITE_CYCLES <= 8'hFF;  //Defaults to 255 cycles since we don't have any OpCode left for programming.
-                            WL_BIAS_SEL = 1'b1;
-                            BL_BIAS_SEL = 3'b111;   //WRITE
-                            SL_BIAS_SEL = 1'b1;  // WRITE 
+                            WL_BIAS_SEL_prereg = 1'b1;
+                            BL_BIAS_SEL_prereg = 1'b1;   //WRITE
+                            SL_BIAS_SEL_prereg = 1'b1;  // WRITE 
                         end
                         INSTR_READ_RRAM: begin
                             curr_state <= STATE_READ_RRAM;
                             ROW_ADDR_WR_RD <= OPCODE[9:0];
                             COL_BASE_ADDR <= OPCODE[12:10]; 
                             COL_BURST_SIZE_WR_RD <= OPCODE[15:13];
-                            WL_BIAS_SEL = 1'b0;
-                            BL_BIAS_SEL = 3'b000;   // READ 
-                            SL_BIAS_SEL = 1'b0;  // READ 
+                            WL_BIAS_SEL_prereg = 1'b0;
+                            BL_BIAS_SEL_prereg = 1'b0;   // READ 
+                            SL_BIAS_SEL_prereg = 1'b0;  // READ 
                         end
                         INSTR_STORE_HAM_WEIGHT: begin
                             curr_state <= STATE_STORE_HAM_WEIGHT;
@@ -284,9 +320,9 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
                             COL_BASE_ADDR <= OPCODE[11:9]; 
                             SEGMENT_WIDTH <= (OPCODE[12])?16:8;
                             NUM_WRITE_CYCLES <= 32*(OPCODE[15:13]+1); //If NUM_WRITE_CYCLES is 7, we want to write for 32*8 cycles
-                            WL_BIAS_SEL = 1'b1;
-                            BL_BIAS_SEL = 3'b111;   //WRITE
-                            SL_BIAS_SEL = 1'b1;  // WRITE 
+                            WL_BIAS_SEL_prereg = 1'b1;
+                            BL_BIAS_SEL_prereg = 1'b1;   //WRITE
+                            SL_BIAS_SEL_prereg = 1'b1;  // WRITE 
                         end
                         INSTR_HAM_SEGMENT_COMPUTE: begin
                             curr_state <= STATE_HAM_SEGMENT_COMPUTE;
@@ -296,9 +332,9 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
                             SEGMENT_WIDTH <= (OPCODE[9])?16:8;
                             RESET_ACC <= OPCODE[10];
                             PHD_READOUT_EN <= OPCODE[11];
-                            WL_BIAS_SEL = 1'b0;
-                            BL_BIAS_SEL = 3'b000;   // READ 
-                            SL_BIAS_SEL = 1'b0;  // READ 
+                            WL_BIAS_SEL_prereg = 1'b0;
+                            BL_BIAS_SEL_prereg = 1'b0;   // READ 
+                            SL_BIAS_SEL_prereg = 1'b0;  // READ 
                         end
                         default: begin
                             curr_state <= STATE_IDLE;
@@ -428,15 +464,15 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
               if (counter_fsm != NUM_COMPUTE_HD_CYCLES+NUM_READOUT_PHD_CYCLES) begin //Compute Partial hamming Distance and store in PHD_ACC register
                 if(counter_fsm < NUM_COMPUTE_HD_CYCLES) begin
                         //pop iFIFO, fill input REGs, compute HD for ROW_BURST_SIZE_COMPUTE cycles and then again iFIFO
-                        
-                    if(counter_fsm == 0) begin
+                       
+                    if(row_busrt_ctr==0) begin
                         //Pop New data from the iFIFO
                         //Send in inputs_reg_load command 
                         if ((~empty_iFIFO_ext && ~ext_hd_sel_fifo) || (~empty_iFIFO_hd && ~ext_hd_sel_fifo)) begin
                             if (~ext_hd_sel_fifo) pop_n_iFIFO_ext <= 1'b0;
                             else pop_n_iFIFO_hd <= 1'b0;
                             DATAIN <= (ext_hd_sel_fifo)?dout_iFIFO_ext:dout_iFIFO_hd;
-                            counter_fsm <= counter_fsm+1;
+                            row_burst_ctr <= row_burst_ctr+1;
 							LOCAL_INSTR <= CMD_WRITE_INPUTS; 
 							ROW_ADDR_MVM <= 64*ROW_ADDR_HAM_COMPUTE;
 							NUM_ROWS_SEGMENT <= DATAIN_WIDTH/ROW_BURST_SIZE_COMPUTE; //If burst_size=4, 4 segments
@@ -444,11 +480,21 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
                     end else begin //counter_fsm % (1+2*NUM_WRITE_CYCLES) >= 1 && counter_fsm % (1+2*NUM_WRITE_CYCLES) <= 2*NUM_WRITE_CYCLES
                         //Write onto Selected Row and Selected Columns
                         //Send in program_rram command 
-						LOCAL_INSTR <= CMD_COMPUTE_MVM;
-						ROW_ADDR_MVM <= 64*ROW_ADDR_HAM_COMPUTE+NUM_ROWS_SEGMENT*((counter_fsm-1)/(1+COL_BURST_SIZE_COMPUTE)); //Change row base address based on the burst size
-						COL_OFFSET <= (ROW_BURST_SIZE_COMPUTE==4)?((counter_fsm-1)>>2):((ROW_BURST_SIZE_COMPUTE==2)?((counter_fsm-1)>>1):counter_fsm) ; //Change Column Address
-                        counter_fsm <= counter_fsm+1;
-                        
+                        //Spend one spare cycle for precharge before every compute
+                        if (row_burst_ctr % 2 == 1) begin 
+                          LOCAL_INSTR <= CMD_NO_OP; //Precharge
+                          row_burst_ctr <= row_burst_ctr+1;
+                        end else begin 
+						  LOCAL_INSTR <= CMD_COMPUTE_MVM;
+						  //ROW_ADDR_MVM <= 64*ROW_ADDR_HAM_COMPUTE+NUM_ROWS_SEGMENT*((counter_fsm-1)/(1+COL_BURST_SIZE_COMPUTE)); //Change row base address based on the burst size
+						  //COL_OFFSET <= (ROW_BURST_SIZE_COMPUTE==4)?((counter_fsm-1)>>3):((ROW_BURST_SIZE_COMPUTE==2)?((counter_fsm-1)>>2):counter_fsm>>1) ; //Change Column Address
+                          ROW_ADDR_MVM <= 64*ROW_ADDR_HAM_COMPUTE+16*((row_burst_ctr-1)/2);
+                          COL_OFFSET <= counter_fsm;
+                          if(row_burst_ctr == (1+2*ROW_BURST_SIZE_COMPUTE)) begin
+                                row_burst_ctr <= 4'b0;
+                                counter_fsm <= counter_fsm+1;
+                          end else row_burst_ctr <= row_burst_ctr+1;
+                        end
                     end
               
                 end else begin  //READOUT the outputs from ACC Register
@@ -519,7 +565,7 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
         
         
          for (int i=0; i<NUM_WL;i++) begin
-            WL_SEL = (LOCAL_INSTR==CMD_COMPUTE_MVM)?(WL_UNGATED[i] & CLK_WL):WL_UNGATED[i]; //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+            WL_SEL_prereg[i] = (LOCAL_INSTR==CMD_COMPUTE_MVM)?(WL_UNGATED[i] & CLK_WL):WL_UNGATED[i]; //Only gate the Clock when MVM is done, Don't gate it when programming/reading
          end
     end
     //Sequential Logic
@@ -563,7 +609,7 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
                     SL_UNGATED[i] = 3'b100; //SL selected to reference
          end
            
-         SL_MUX_SEL = {NUM_SL{1'b0}}; // Default MUXSEL 
+         SL_MUX_SEL_prereg = {NUM_SL{1'b0}}; // Default MUXSEL 
          din_oFIFO_ext = {DATAOUT_WIDTH{1'b0}};
          din_oFIFO_hd = {DATAOUT_WIDTH{1'b0}};
 		 case (LOCAL_INSTR) 
@@ -596,7 +642,7 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
                     
                     //Don't add any register for MUX_SEL since we want to MUX it on the same clock edge
                     for (int i=0; i < NUM_ADC;i++) begin
-                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+:(NUM_SL/NUM_ADC)] = (1<<COL_OFFSET); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
+                        SL_MUX_SEL_prereg[i*(NUM_SL/NUM_ADC)+:(NUM_SL/NUM_ADC)] = (1<<COL_OFFSET); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
                     end
                 end
 				CMD_READ_ADC_OUT: begin
@@ -611,7 +657,7 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
 						//Only activate 32 BL at the same time
 						BL_UNGATED[i*(NUM_SL/NUM_ADC)+COL_OFFSET] = 3'b001; //BL selected to VBL+, BL selected to VBL-
                         SL_UNGATED[i*(NUM_SL/NUM_ADC)+COL_OFFSET] = 3'b000; //SL Left floating and the parasitic cap gets charged.
-                        SL_MUX_SEL[i*(NUM_SL/NUM_ADC)+:(NUM_SL/NUM_ADC)] = (1<<COL_OFFSET); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
+                        SL_MUX_SEL_prereg[i*(NUM_SL/NUM_ADC)+:(NUM_SL/NUM_ADC)] = (1<<COL_OFFSET); //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC)=16
                     end
                 end
                 
@@ -644,14 +690,14 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
           endcase
           for (int i=0; i<NUM_SL;i++) begin
                 //BL Controls
-				BL_SEL[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][0] & CLK_BL):BL_UNGATED[i][0]; //BLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				BL_SEL[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][1] & CLK_BL):BL_UNGATED[i][1]; //BLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				BL_SEL[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][2] & CLK_BL):BL_UNGATED[i][2]; //BLref SEL  //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL_prereg[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][0] & CLK_BL):BL_UNGATED[i][0]; //BLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL_prereg[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][1] & CLK_BL):BL_UNGATED[i][1]; //BLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				BL_SEL_prereg[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(BL_UNGATED[i][2] & CLK_BL):BL_UNGATED[i][2]; //BLref SEL  //Only gate the Clock when MVM is done, Don't gate it when programming/reading
 				
 				//SL Controls
-				SL_SEL[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][0] & CLK_BL):SL_UNGATED[i][0]; //SLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				SL_SEL[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][1] & CLK_BL):SL_UNGATED[i][1]; //SLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
-				SL_SEL[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][2] & CLK_BL):SL_UNGATED[i][2]; //SLref SEL //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL_prereg[i][0]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][0] & CLK_BL):SL_UNGATED[i][0]; //SLplus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL_prereg[i][1]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][1] & CLK_BL):SL_UNGATED[i][1]; //SLminus SEL, //Only gate the Clock when MVM is done, Don't gate it when programming/reading
+				SL_SEL_prereg[i][2]= (LOCAL_INSTR==CMD_COMPUTE_MVM)?(SL_UNGATED[i][2] & CLK_BL):SL_UNGATED[i][2]; //SLref SEL //Only gate the Clock when MVM is done, Don't gate it when programming/reading
 		 end
     end
     
@@ -748,8 +794,22 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
         
     end
     
+    //2 pipelined delay, 1 from WL_SEL/BL_SEL to feeding WL/BL (1 cycle), another for analog macro operation, latch output on the next edge
+    reg [3:0] curr_state_reg;
+    reg [3:0] LOCAL_INSTR_reg;
+    reg [3:0] COL_OFFSET_reg;
+    reg [3:0] curr_state_reg_2;
+    reg [3:0] LOCAL_INSTR_reg_2;
+    reg [3:0] COL_OFFSET_reg_2;
    
-    always @(posedge CLK_ADCOUT) begin
+    always @(posedge CLK) begin  //Latch Outputs on the next clock edge of COMPUTE
+        curr_state_reg <= curr_state;
+        LOCAL_INSTR_reg <= LOCAL_INSTR;
+        COL_OFFSET_reg <= COL_OFFSET;
+        curr_state_reg_2 <= curr_state_reg;
+        LOCAL_INSTR_reg_2 <= LOCAL_INSTR_reg;
+        COL_OFFSET_reg_2 <= COL_OFFSET_reg;
+        
         if (RESET_ACC) begin 
             for (int i=0; i < NUM_ADC;i++) begin
                 PHD_ACC[i] <= {NUM_ADC{1'b0}};
@@ -757,10 +817,10 @@ module rram_controller_final(CLK, reset, CLK_ADC, CLK_WL, CLK_BL, CLK_ADCOUT, CO
             for (int i=0; i < NUM_SL;i++) begin
                 ADCOUT_reg[i] <= {ADC_WIDTH{1'b0}};
             end
-        end else if ((curr_state==STATE_READ_RRAM && LOCAL_INSTR == CMD_COMPUTE_MVM) || (curr_state==STATE_HAM_SEGMENT_COMPUTE && LOCAL_INSTR == CMD_COMPUTE_MVM)) begin
+        end else if ((curr_state_reg_2==STATE_READ_RRAM && LOCAL_INSTR_reg_2 == CMD_READ_SINGLE_ADDR) || (curr_state_reg_2==STATE_HAM_SEGMENT_COMPUTE && LOCAL_INSTR_reg_2 == CMD_COMPUTE_MVM)) begin
         
             for (int i=0; i < NUM_ADC;i++) begin
-				ADCOUT_reg[i*(NUM_SL/NUM_ADC)+COL_OFFSET] <= ADCOUT[i]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
+				ADCOUT_reg[i*(NUM_SL/NUM_ADC)+COL_OFFSET_reg_2] <= ADCOUT[i]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
 				PHD_ACC[i] <= PHD_ACC[i] + ADCOUT[i]; //OPCODE[3:0] is the MUXSEL, (NUM_SL/NUM_ADC) = 16
             end
          end
