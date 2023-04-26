@@ -106,8 +106,12 @@ module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, e
             .full_oFIFO_hd(full_oFIFO_hd),
 
             .WL_SEL(WL_SEL), //Gated WL_SEL fed into the Crossbar
-            .BL_SEL(BL_SEL), //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
-            .SL_SEL(SL_SEL), //Gated SL_SEL fed into the Crossbar (3b each)
+            .BLplus_SEL(BLplus_SEL), //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
+            .BLminus_SEL(BLminus_SEL), //Gated SL_SEL fed into the Crossbar (3b each)
+            .BLref_SEL(BLref_SEL), 
+            .SLplus_SEL(SLplus_SEL),
+            .SLminus_SEL(SLminus_SEL),
+            .SLref_SEL(SLref_SEL),
             .SL_MUX_SEL(SL_MUX_SEL),   //MUX SEL to select between 16 adjacent SLs and pass one to the shared ADC.
         
             .WL_BIAS_SEL(WL_BIAS_SEL), //Selects between WRITE and READ Bias
@@ -124,8 +128,8 @@ module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, e
     reg [NUM_ADC/2-1:0] ADC_CLKb;
     
     top_RRAM anamacro(
-            .ADC_CLK(ADC_CLK),   //Dynamic comparator clock
-            .ADC_CLKb(ADC_CLKb),
+            .ADC_CLK({16{~CLK_BL}}),   //Dynamic comparator clock
+            .ADC_CLKb({16{CLK_BL}}),
             .BL_Vref_sel09(BLref_SEL),
             .BL_minus_sel09(BLminus_SEL),
             .BL_plus_sel09(BLplus_SEL),
@@ -161,13 +165,6 @@ module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, e
             .outp(outp), 
             .outn(outn)
     );
-    
-    always_comb begin
-           for (int i=0;i<NUM_ADC/2;i++) begin
-               ADC_CLK[i] = ~CLK_BL[i*NUM_ADC];
-               ADC_CLKb[i] = CLK_BL[i*NUM_ADC];
-           end
-    end
     
     always_comb begin
            for (int i=0;i<NUM_ADC;i++) begin

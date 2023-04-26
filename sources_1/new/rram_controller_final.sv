@@ -9,7 +9,7 @@
 // INSTR (0011) : HAM_SEG_COMPUTE, {rd_en-1b}_{reset_acc-1b}, {segment_width-1b}_{col_burst_size-4b}_{row_burst_sel-2b}_{row_addr-3b}
 
 
-module rram_controller_final(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, empty_instFIFO_ext, dout_instFIFO_ext, pop_n_instFIFO_hd, empty_instFIFO_hd, dout_instFIFO_hd, pop_n_iFIFO_ext, empty_iFIFO_ext, dout_iFIFO_ext, pop_n_iFIFO_hd, empty_iFIFO_hd, dout_iFIFO_hd, push_n_oFIFO_ext, full_oFIFO_ext, din_oFIFO_ext, push_n_oFIFO_hd, full_oFIFO_hd, din_oFIFO_hd, WL_SEL, BL_SEL, SL_SEL, SL_MUX_SEL, WL_BIAS_SEL, BL_BIAS_SEL, SL_BIAS_SEL, ADCOUT_THERM);
+module rram_controller_final(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, empty_instFIFO_ext, dout_instFIFO_ext, pop_n_instFIFO_hd, empty_instFIFO_hd, dout_instFIFO_hd, pop_n_iFIFO_ext, empty_iFIFO_ext, dout_iFIFO_ext, pop_n_iFIFO_hd, empty_iFIFO_hd, dout_iFIFO_hd, push_n_oFIFO_ext, full_oFIFO_ext, din_oFIFO_ext, push_n_oFIFO_hd, full_oFIFO_hd, din_oFIFO_hd, WL_SEL, BLplus_SEL, BLminus_SEL, BLref_SEL, SLplus_SEL, SLminus_SEL, SLref_SEL, SL_MUX_SEL, WL_BIAS_SEL, BL_BIAS_SEL, SL_BIAS_SEL, ADCOUT_THERM);
    
     parameter NUM_ADC = 32;
     parameter NUM_CORE = 4;
@@ -177,7 +177,7 @@ module rram_controller_final(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
     assign NUM_STORE_HAM_WEIGHT_CYCLES = (NUM_HD_CLASSES*SEGMENT_WIDTH)/DATAOUT_WIDTH + 4*((NUM_HD_CLASSES*SEGMENT_WIDTH)/DATAOUT_WIDTH); 
     
     assign NUM_COMPUTE_HD_CYCLES = (COL_BURST_SIZE_COMPUTE+1); //1 Cycle for writing input //If ROW_BURST_SIZE_COMPUTE=0, we compute only 16 rows, ROW_BURST_SIZE_COMPUTE=1, we compute only 32 rows, ROW_BURST_SIZE_COMPUTE=2, we compute 64 rows at once
-    reg [3:0] row_busrt_ctr; //Counter to count upto (1+2*ROW_BURST_SIZE_COMPUTE)
+    reg [3:0] row_burst_ctr; //Counter to count upto (1+2*ROW_BURST_SIZE_COMPUTE)
     assign NUM_READOUT_PHD_CYCLES = PHD_READOUT_EN*(NUM_HD_CLASSES*PHD_ACC_WIDTH)/DATAOUT_WIDTH; //Accumulated result is 16b per class
     
     
@@ -264,8 +264,8 @@ module rram_controller_final(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
         ROW_ADDR_HAM_COMPUTE <= 3'b0; 
         ROW_BURST_SIZE_COMPUTE <= 2'b0; 
         COL_BURST_SIZE_COMPUTE <= 4'b0; 
-        RESET_ACC <= 1'b0; 
-        PHD_READOUT_EN <= 1'b0; 
+        RESET_ACC <= 1'b0;
+        PHD_READOUT_EN <= 1'b0;
         wr_cycle_ctr <= 9'b0;
         row_burst_ctr <= 4'b0;
         LOCAL_INSTR <= CMD_RESET_REGS;
@@ -465,7 +465,7 @@ module rram_controller_final(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
                 if(counter_fsm < NUM_COMPUTE_HD_CYCLES) begin
                         //pop iFIFO, fill input REGs, compute HD for ROW_BURST_SIZE_COMPUTE cycles and then again iFIFO
                        
-                    if(row_busrt_ctr==0) begin
+                    if(row_burst_ctr==0) begin
                         //Pop New data from the iFIFO
                         //Send in inputs_reg_load command 
                         if ((~empty_iFIFO_ext && ~ext_hd_sel_fifo) || (~empty_iFIFO_hd && ~ext_hd_sel_fifo)) begin
