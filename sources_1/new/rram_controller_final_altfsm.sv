@@ -250,10 +250,15 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
         wr_cycle_ctr <= 9'b0;
         row_burst_ctr <= 4'b0;
         LOCAL_INSTR <= CMD_RESET_REGS;
+	WL_BIAS_SEL_prereg <= 1'b0;
+        BL_BIAS_SEL_prereg <= 1'b0;   // READ
+        SL_BIAS_SEL_prereg <= 1'b0;  // READ
+	
      end else begin
      
         //Assign variables only which doesn't require any latch behaviour
-        pop_n_instFIFO_ext <= 1'b1;
+        //These might be creating X propgaration in the gate level simulation.
+	//pop_n_instFIFO_ext <= 1'b1;
         pop_n_iFIFO_ext <= 1'b1;
         push_n_oFIFO_ext <= 1'b1;
         pop_n_instFIFO_hd <= 1'b1;
@@ -264,14 +269,17 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
         case (curr_state)
             STATE_RESET: begin
                 curr_state <= STATE_IDLE;
+		pop_n_instFIFO_ext <= 1'b1;
             end
             STATE_IDLE: begin
                 if(~empty_instFIFO_ext || ~empty_instFIFO_hd) begin
                     if(~empty_instFIFO_ext) begin 
                         pop_n_instFIFO_ext <= 1'b0;
+                        pop_n_instFIFO_hd <= 1'b1;
                         ext_hd_sel_fifo <= 1'b0;
                     end else begin 
                         pop_n_instFIFO_hd <= 1'b0;
+                        pop_n_instFIFO_ext <= 1'b1;
                         ext_hd_sel_fifo <= 1'b1;
                     end
                     counter_fsm <= 16'b0;
@@ -282,18 +290,18 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
                             COL_BASE_ADDR <= OPCODE[12:10]; 
                             COL_BURST_SIZE_WR_RD <= OPCODE[15:13];
                             NUM_WRITE_CYCLES <= 8'hFF;  //Defaults to 255 cycles since we don't have any OpCode left for programming.
-                            WL_BIAS_SEL_prereg = 1'b1;
-                            BL_BIAS_SEL_prereg = 1'b1;   //WRITE
-                            SL_BIAS_SEL_prereg = 1'b1;  // WRITE 
+                            WL_BIAS_SEL_prereg <= 1'b1;
+                            BL_BIAS_SEL_prereg <= 1'b1;   //WRITE
+                            SL_BIAS_SEL_prereg <= 1'b1;  // WRITE 
                         end
                         INSTR_READ_RRAM: begin
                             curr_state <= STATE_READ_RRAM;
                             ROW_ADDR_WR_RD <= OPCODE[9:0];
                             COL_BASE_ADDR <= OPCODE[12:10]; 
                             COL_BURST_SIZE_WR_RD <= OPCODE[15:13];
-                            WL_BIAS_SEL_prereg = 1'b0;
-                            BL_BIAS_SEL_prereg = 1'b0;   // READ 
-                            SL_BIAS_SEL_prereg = 1'b0;  // READ 
+                            WL_BIAS_SEL_prereg <= 1'b0;
+                            BL_BIAS_SEL_prereg <= 1'b0;   // READ 
+                            SL_BIAS_SEL_prereg <= 1'b0;  // READ 
                         end
                         INSTR_STORE_HAM_WEIGHT: begin
                             curr_state <= STATE_STORE_HAM_WEIGHT;
@@ -301,9 +309,9 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
                             COL_BASE_ADDR <= OPCODE[11:9]; 
                             SEGMENT_WIDTH <= (OPCODE[12])?16:8;
                             NUM_WRITE_CYCLES <= 32*(OPCODE[15:13]+1); //If NUM_WRITE_CYCLES is 7, we want to write for 32*8 cycles
-                            WL_BIAS_SEL_prereg = 1'b1;
-                            BL_BIAS_SEL_prereg = 1'b1;   //WRITE
-                            SL_BIAS_SEL_prereg = 1'b1;  // WRITE 
+                            WL_BIAS_SEL_prereg <= 1'b1;
+                            BL_BIAS_SEL_prereg <= 1'b1;   //WRITE
+                            SL_BIAS_SEL_prereg <= 1'b1;  // WRITE 
                         end
                         INSTR_HAM_SEGMENT_COMPUTE: begin
                             curr_state <= STATE_HAM_SEGMENT_COMPUTE;
@@ -313,9 +321,9 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
                             SEGMENT_WIDTH <= (OPCODE[9])?16:8;
                             RESET_ACC <= OPCODE[10];
                             PHD_READOUT_EN <= OPCODE[11];
-                            WL_BIAS_SEL_prereg = 1'b0;
-                            BL_BIAS_SEL_prereg = 1'b0;   // READ 
-                            SL_BIAS_SEL_prereg = 1'b0;  // READ 
+                            WL_BIAS_SEL_prereg <= 1'b0;
+                            BL_BIAS_SEL_prereg <= 1'b0;   // READ 
+                            SL_BIAS_SEL_prereg <= 1'b0;  // READ 
                         end
                         default: begin
                             curr_state <= STATE_IDLE;
@@ -323,11 +331,13 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
                         end
                     endcase
                 end
+		else pop_n_instFIFO_ext <= 1'b1;
             end
 			//1. 10b WRITE_ROW_ADDR is the row address.
 			//2. 3b COL_BASE_ADDR is the base addr for column (can be either 0, 64, 128, .....512-64)
 			//3. 3b COL_BURST_SIZE is the number of 64b packets we are trying to write. If burst_size=000, we only write 1 packet, if it's 111, we write entire 512 columns
             STATE_STORE_RRAM: begin
+		 pop_n_instFIFO_ext <= 1'b1;
                  if (counter_fsm != NUM_STORE_WEIGHTS_CYCLES) begin
                     //Pop dataFIFO, first load the 64b data and then write 64 columns for 2*255 cycles, Pop new data after erevry (1+2*255) cycles
                     
@@ -367,6 +377,7 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
 			//3. 4x{burst_size-3b} is the number of 64b packets we are trying to read. If burst_size=000, we only read 64 columns(4bx64) if it's 111, we read entire 512 columns (4bx512). 
 			//We read all entire 4b from each column to know the precise analog value of resistance
             STATE_READ_RRAM: begin
+		pop_n_instFIFO_ext <= 1'b1;
                 //2 cycles for the pipelined delay
                 if (counter_fsm != NUM_READ_SINGLE_ADDR_CYCLES+2) begin
                     if (counter_fsm <= (NUM_SL/NUM_ADC)-1) begin
@@ -400,6 +411,7 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
 			//3. {segment_width-1b} denotes whether we are only 8 columns (segment_width=0) or we use all 16 columns (segment_width=1). If the D = 512, our weight memory layout is 64x8b, If D=1024, our layout is 64x16b   
             //4. {NUM_WRITE_CYCLES-3b}: number of cycles to wtite = 32xNUM_WRITE_CYCLES
             STATE_STORE_HAM_WEIGHT: begin
+		pop_n_instFIFO_ext <= 1'b1;
             
                 if (counter_fsm != NUM_STORE_HAM_WEIGHT_CYCLES) begin
                     //Pop dataFIFO, first load the 64b data and then write 64 columns for 2*255 cycles, Pop new data after erevry (1+2*NUM_WRITE_CYCLES) cycles
@@ -447,6 +459,7 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
             //TODO:- Merge readout_en instruction with compute instruction
             STATE_HAM_SEGMENT_COMPUTE: begin
               //2 cycle for the pipelined delay
+	      pop_n_instFIFO_ext <= 1'b1;
               if (counter_fsm != NUM_COMPUTE_HD_CYCLES+NUM_READOUT_PHD_CYCLES+2) begin //Compute Partial hamming Distance and store in PHD_ACC register
                 if(counter_fsm < NUM_COMPUTE_HD_CYCLES) begin
                         //pop iFIFO, fill input REGs, compute HD for ROW_BURST_SIZE_COMPUTE cycles and then again iFIFO
@@ -508,6 +521,7 @@ module rram_controller_final(CLK, rst_n, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIF
             end
             default:begin
                 curr_state <= STATE_RESET;
+		pop_n_instFIFO_ext <= 1'b1;
             end
         endcase
      end

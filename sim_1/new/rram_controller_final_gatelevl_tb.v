@@ -6,7 +6,7 @@
 // Code your testbench here
 // or browse Examples
 
-module rram_controller_final_tb;
+module rram_controller_final_gatelevel_tb;
     parameter NUM_ADC = 32;
     parameter NUM_CORE = 4;
     parameter COREID = 1;
@@ -25,57 +25,55 @@ module rram_controller_final_tb;
     parameter PHD_ACC_WIDTH = 16;
     
     
-    logic CLK;
-    logic rst_n;
-    logic [(NUM_WL/4)-1:0] CLK_WL;
-    logic [(NUM_SL/4)-1:0] CLK_BL;
+    reg CLK;
+    reg rst_n;
+    reg [(NUM_WL/4)-1:0] CLK_WL;
+    reg [(NUM_SL/4)-1:0] CLK_BL;
     
-    logic [$clog2(NUM_CORE)-1:0] CORE_SEL;
-    
-     //Instruction FIFO 
-    logic  pop_n_instFIFO_ext;
-    logic  empty_instFIFO_ext;
-    logic  [INSTR_WIDTH+OPCODE_WIDTH-1:0] dout_instFIFO_ext;
+    reg [$clog2(NUM_CORE)-1:0] CORE_SEL;
     
      //Instruction FIFO 
-    logic  pop_n_instFIFO_hd;
-    logic  empty_instFIFO_hd;
-    logic  [INSTR_WIDTH+OPCODE_WIDTH-1:0] dout_instFIFO_hd;
+    reg  pop_n_instFIFO_ext;
+    reg  empty_instFIFO_ext;
+    reg  [INSTR_WIDTH+OPCODE_WIDTH-1:0] dout_instFIFO_ext;
+    
+     //Instruction FIFO 
+    reg  pop_n_instFIFO_hd;
+    reg  empty_instFIFO_hd;
+    reg  [INSTR_WIDTH+OPCODE_WIDTH-1:0] dout_instFIFO_hd;
     
     //input data FIFO
-    logic pop_n_iFIFO_ext;
-    logic  empty_iFIFO_ext;
-    logic  [DATAIN_WIDTH-1:0] dout_iFIFO_ext;
-    logic pop_n_iFIFO_hd;
-    logic  empty_iFIFO_hd;
-    logic  [DATAIN_WIDTH-1:0] dout_iFIFO_hd;
+    reg pop_n_iFIFO_ext;
+    reg  empty_iFIFO_ext;
+    reg  [DATAIN_WIDTH-1:0] dout_iFIFO_ext;
+    reg pop_n_iFIFO_hd;
+    reg  empty_iFIFO_hd;
+    reg  [DATAIN_WIDTH-1:0] dout_iFIFO_hd;
     
     //output data FIFO
-    logic push_n_oFIFO_ext;
-    logic  full_oFIFO_ext;
-    logic [DATAIN_WIDTH-1:0] din_oFIFO_ext; 
-    logic  push_n_oFIFO_hd;
-    logic  full_oFIFO_hd;
-    logic [DATAIN_WIDTH-1:0] din_oFIFO_hd;
-    logic [NUM_WL-1:0] WL_SEL; //Gated WL_SEL fed into the Crossbar
-    logic [NUM_WL-1:0] WL_SEL; //Gated WL_SEL fed into the Crossbar
-    logic [NUM_SL-1:0] BLplus_SEL ; //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
-    logic [NUM_SL-1:0] BLminus_SEL ;
-    logic [NUM_SL-1:0] BLref_SEL ;
-    logic [NUM_SL-1:0] SLplus_SEL ;
-    logic [NUM_SL-1:0] SLminus_SEL ;
-    logic [NUM_SL-1:0] SLref_SEL ;
-    logic [NUM_SL-1:0] SL_MUX_SEL; 
-    logic [NUM_SL-1:0] SL_MUX_SEL;   //MUX SEL to select between 16 adjacent SLs and pass one to the shared ADC.
-    logic WL_BIAS_SEL; //Selects between WRITE and READ Bias
-    logic BL_BIAS_SEL; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
-    logic SL_BIAS_SEL; //Selects between WRITE and READ for REF
+    reg push_n_oFIFO_ext;
+    reg  full_oFIFO_ext;
+    reg [DATAIN_WIDTH-1:0] din_oFIFO_ext; 
+    reg  push_n_oFIFO_hd;
+    reg  full_oFIFO_hd;
+    reg [DATAIN_WIDTH-1:0] din_oFIFO_hd;
+    reg [NUM_WL-1:0] WL_SEL; //Gated WL_SEL fed into the Crossbar
+    reg [NUM_SL-1:0] BLplus_SEL ; //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
+    reg [NUM_SL-1:0] BLminus_SEL ;
+    reg [NUM_SL-1:0] BLref_SEL ;
+    reg [NUM_SL-1:0] SLplus_SEL ;
+    reg [NUM_SL-1:0] SLminus_SEL ;
+    reg [NUM_SL-1:0] SLref_SEL ;
+    reg [NUM_SL-1:0] SL_MUX_SEL;   //MUX SEL to select between 16 adjacent SLs and pass one to the shared ADC.
+    reg WL_BIAS_SEL; //Selects between WRITE and READ Bias
+    reg BL_BIAS_SEL; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
+    reg SL_BIAS_SEL; //Selects between WRITE and READ for REF
 
-    logic [(NUM_ADC*ADC_WIDTH_THERM)-1:0] ADCOUT_THERM; //32 4-b ADCs
+    reg [(NUM_ADC*ADC_WIDTH_THERM)-1:0] ADCOUT_THERM; //32 4-b ADCs
     
 
  //rram_controller_final rram_controller(
- rram_controller_final  rram_controller(
+ rram_controller_final_gatelevel  rram_controller(
             .CLK(CLK),
             .rst_n(rst_n),
             .CLK_WL(CLK_WL),
@@ -129,7 +127,7 @@ module rram_controller_final_tb;
       rst_n = 1'b0;
       CLK_BL = 128'b0;
       CLK_WL = 256'b0;
-      
+      CORE_SEL = 1'b0;
       //Instruction FIFO 
       empty_instFIFO_ext = 1'b1;
       dout_instFIFO_ext = 20'b0;

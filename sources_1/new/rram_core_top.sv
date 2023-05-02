@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
 
-module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, empty_instFIFO_ext, dout_instFIFO_ext, pop_n_instFIFO_hd, empty_instFIFO_hd, dout_instFIFO_hd, pop_n_iFIFO_ext, empty_iFIFO_ext, dout_iFIFO_ext, pop_n_iFIFO_hd, empty_iFIFO_hd, dout_iFIFO_hd, push_n_oFIFO_ext, full_oFIFO_ext, din_oFIFO_ext, push_n_oFIFO_hd, full_oFIFO_hd, din_oFIFO_hd);
+module rram_core_top(CLK, rst_n, CLK_WL, CLK_BL, CLK_ADC, CLK_ADCb, CORE_SEL, pop_n_instFIFO_ext, 
+empty_instFIFO_ext, dout_instFIFO_ext, pop_n_instFIFO_hd, empty_instFIFO_hd, dout_instFIFO_hd, 
+pop_n_iFIFO_ext, empty_iFIFO_ext, dout_iFIFO_ext, pop_n_iFIFO_hd, empty_iFIFO_hd, dout_iFIFO_hd, 
+push_n_oFIFO_ext, full_oFIFO_ext, din_oFIFO_ext, push_n_oFIFO_hd, full_oFIFO_hd, din_oFIFO_hd);
    
     parameter NUM_ADC = 32;
     parameter NUM_CORE = 4;
@@ -20,9 +23,11 @@ module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, e
     parameter PHD_ACC_WIDTH = 16;
     
     input CLK;
-    input reset;
-    input [NUM_WL-1:0] CLK_WL;
-    input [NUM_SL-1:0] CLK_BL;
+    input rst_n;
+    input [(NUM_WL/4)-1:0] CLK_WL;
+    input [(NUM_SL/4)-1:0] CLK_BL;
+    input [NUM_ADC/2-1:0] CLK_ADC;
+    input [NUM_ADC/2-1:0] CLK_ADCb;
     //input [$clog2(NUM_CORE)-1:0] CORE_SEL;
     input [1:0] CORE_SEL;
     
@@ -70,15 +75,19 @@ module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, e
     wire BL_BIAS_SEL; //Selects between WRITE and READ Bias for PLUS, MINUS and REF
     wire SL_BIAS_SEL; //Selects between WRITE and READ for REF
     
-    reg [ADC_WIDTH_THERM-1:0] ADCOUT_THERM[NUM_ADC-1:0]; //32 4-b ADCs
-    
+    //reg [ADC_WIDTH_THERM-1:0] ADCOUT_THERM[NUM_ADC-1:0]; //32 4-b ADCs
+   
+   //Power ports in the top_RRAM are VDDH, VDDHA2, VDDL, GND, VBLR+, VBLR-, VBLR_ref, VBLWr+, VBLWr-, VBLWr_ref, VSLR+, VSLR-, VSLR_ref, VSLWr+, VSLWr-, VSLWr_ref, gp, Vgn, COMP_REF+, COMP_REF-, Vref_comp<0:14>
+    wire [(ADC_WIDTH_THERM*NUM_ADC)-1:0] outp;
+    //wire [ADC_WIDTH_THERM*NUM_ADC-1:0] outn;
    
     
     rram_controller_final rram_controller(
             .CLK(CLK),
-            .reset(reset),
+            .rst_n(rst_n),
             .CLK_WL(CLK_WL),
             .CLK_BL(CLK_BL),
+            
             .CORE_SEL(CORE_SEL),
             
               //Instruction FIFO
@@ -104,6 +113,7 @@ module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, e
             .din_oFIFO_ext(din_oFIFO_ext),
             .push_n_oFIFO_hd(push_n_oFIFO_hd),
             .full_oFIFO_hd(full_oFIFO_hd),
+            .din_oFIFO_hd(din_oFIFO_hd),
 
             .WL_SEL(WL_SEL), //Gated WL_SEL fed into the Crossbar
             .BLplus_SEL(BLplus_SEL), //Gated BL_SEL fed into the Crossbar (3b each), Controls for 2 adjacent BLs (BL+ and BL-) are shared.
@@ -118,18 +128,14 @@ module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, e
             .BL_BIAS_SEL(BL_BIAS_SEL), //Selects between WRITE and READ Bias for PLUS, MINUS and REF
             .SL_BIAS_SEL(SL_BIAS_SEL), //Selects between WRITE and READ for REF
 
-            .ADCOUT_THERM(ADCOUT_THERM) //32 4-b ADCs
+            .ADC_outp(outp) //32 4-b ADCs
     );
-    //Power ports in the top_RRAM are VDDH, VDDHA2, VDDL, GND, VBLR+, VBLR-, VBLR_ref, VBLWr+, VBLWr-, VBLWr_ref, VSLR+, VSLR-, VSLR_ref, VSLWr+, VSLWr-, VSLWr_ref, gp, Vgn, COMP_REF+, COMP_REF-, Vref_comp<0:14>
-    wire [ADC_WIDTH_THERM*NUM_ADC-1:0] outp;
-    wire [ADC_WIDTH_THERM*NUM_ADC-1:0] outn;
     
-    reg [NUM_ADC/2-1:0] ADC_CLK;
-    reg [NUM_ADC/2-1:0] ADC_CLKb;
+    
     
     top_RRAM anamacro(
-            .ADC_CLK({16{~CLK_BL}}),   //Dynamic comparator clock
-            .ADC_CLKb({16{CLK_BL}}),
+            .ADC_CLK(CLK_ADC),   //Dynamic comparator clock
+            .ADC_CLKb(CLK_ADCb),
             .BL_Vref_sel09(BLref_SEL),
             .BL_minus_sel09(BLminus_SEL),
             .BL_plus_sel09(BLplus_SEL),
@@ -162,16 +168,9 @@ module rram_core_top(CLK, reset, CLK_WL, CLK_BL, CORE_SEL, pop_n_instFIFO_ext, e
             .VSLWrm_power_selb(~SL_BIAS_SEL) ,
             .VSLWr_ref_power_sel(SL_BIAS_SEL) ,
             .VSLWr_ref_power_selb(~SL_BIAS_SEL),
-            .outp(outp), 
-            .outn(outn)
+            .outp(outp)
     );
     
-    always_comb begin
-           for (int i=0;i<NUM_ADC;i++) begin
-               ADCOUT_THERM[i] = outp[i*ADC_WIDTH_THERM+:15];
-           end
-    
-    end
     
 endmodule
 

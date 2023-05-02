@@ -3,129 +3,233 @@
    <wave_state>
    </wave_state>
    <db_ref_list>
-      <db_ref path="rram_controller_fsm_tb_behav.wdb" id="1">
+      <db_ref path="rram_controller_final_gatelevel_tb_behav.wdb" id="1">
          <top_modules>
             <top_module name="glbl" />
-            <top_module name="rram_controller_fsm_tb" />
+            <top_module name="rram_controller_final_gatelevel_tb" />
          </top_modules>
       </db_ref>
    </db_ref_list>
    <zoom_setting>
-      <ZoomStartTime time="47.268 ns"></ZoomStartTime>
-      <ZoomEndTime time="1,796.219 ns"></ZoomEndTime>
-      <Cursor1Time time="16,082.009 ns"></Cursor1Time>
+      <ZoomStartTime time="0.000 ns"></ZoomStartTime>
+      <ZoomEndTime time="1,000.001 ns"></ZoomEndTime>
+      <Cursor1Time time="534.000 ns"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
-      <NameColumnWidth column_width="185"></NameColumnWidth>
-      <ValueColumnWidth column_width="89"></ValueColumnWidth>
+      <NameColumnWidth column_width="212"></NameColumnWidth>
+      <ValueColumnWidth column_width="98"></ValueColumnWidth>
    </column_width_setting>
-   <WVObjectSize size="27" />
-   <wvobject type="logic" fp_name="/rram_controller_fsm_tb/controller_fsm/CLK">
+   <WVObjectSize size="53" />
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/CLK">
       <obj_property name="ElementShortName">CLK</obj_property>
       <obj_property name="ObjectShortName">CLK</obj_property>
    </wvobject>
-   <wvobject type="logic" fp_name="/rram_controller_fsm_tb/controller_fsm/pop_n_instFIFO">
-      <obj_property name="ElementShortName">pop_n_instFIFO</obj_property>
-      <obj_property name="ObjectShortName">pop_n_instFIFO</obj_property>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/rst_n">
+      <obj_property name="ElementShortName">rst_n</obj_property>
+      <obj_property name="ObjectShortName">rst_n</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/dout_instFIFO">
-      <obj_property name="ElementShortName">dout_instFIFO[19:0]</obj_property>
-      <obj_property name="ObjectShortName">dout_instFIFO[19:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/CLK_WL">
+      <obj_property name="ElementShortName">CLK_WL[255:0]</obj_property>
+      <obj_property name="ObjectShortName">CLK_WL[255:0]</obj_property>
    </wvobject>
-   <wvobject type="logic" fp_name="/rram_controller_fsm_tb/controller_fsm/empty_instFIFO">
-      <obj_property name="ElementShortName">empty_instFIFO</obj_property>
-      <obj_property name="ObjectShortName">empty_instFIFO</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/CLK_BL">
+      <obj_property name="ElementShortName">CLK_BL[127:0]</obj_property>
+      <obj_property name="ObjectShortName">CLK_BL[127:0]</obj_property>
    </wvobject>
-   <wvobject type="logic" fp_name="/rram_controller_fsm_tb/controller_fsm/pop_n_iFIFO">
-      <obj_property name="ElementShortName">pop_n_iFIFO</obj_property>
-      <obj_property name="ObjectShortName">pop_n_iFIFO</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/CORE_SEL">
+      <obj_property name="ElementShortName">CORE_SEL[1:0]</obj_property>
+      <obj_property name="ObjectShortName">CORE_SEL[1:0]</obj_property>
    </wvobject>
-   <wvobject type="logic" fp_name="/rram_controller_fsm_tb/controller_fsm/empty_iFIFO">
-      <obj_property name="ElementShortName">empty_iFIFO</obj_property>
-      <obj_property name="ObjectShortName">empty_iFIFO</obj_property>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/pop_n_instFIFO_ext">
+      <obj_property name="ElementShortName">pop_n_instFIFO_ext</obj_property>
+      <obj_property name="ObjectShortName">pop_n_instFIFO_ext</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/dout_iFIFO">
-      <obj_property name="ElementShortName">dout_iFIFO[63:0]</obj_property>
-      <obj_property name="ObjectShortName">dout_iFIFO[63:0]</obj_property>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/empty_instFIFO_ext">
+      <obj_property name="ElementShortName">empty_instFIFO_ext</obj_property>
+      <obj_property name="ObjectShortName">empty_instFIFO_ext</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/WL_SEL">
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/dout_instFIFO_ext">
+      <obj_property name="ElementShortName">dout_instFIFO_ext[19:0]</obj_property>
+      <obj_property name="ObjectShortName">dout_instFIFO_ext[19:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/pop_n_instFIFO_hd">
+      <obj_property name="ElementShortName">pop_n_instFIFO_hd</obj_property>
+      <obj_property name="ObjectShortName">pop_n_instFIFO_hd</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/empty_instFIFO_hd">
+      <obj_property name="ElementShortName">empty_instFIFO_hd</obj_property>
+      <obj_property name="ObjectShortName">empty_instFIFO_hd</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/dout_instFIFO_hd">
+      <obj_property name="ElementShortName">dout_instFIFO_hd[19:0]</obj_property>
+      <obj_property name="ObjectShortName">dout_instFIFO_hd[19:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/pop_n_iFIFO_ext">
+      <obj_property name="ElementShortName">pop_n_iFIFO_ext</obj_property>
+      <obj_property name="ObjectShortName">pop_n_iFIFO_ext</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/empty_iFIFO_ext">
+      <obj_property name="ElementShortName">empty_iFIFO_ext</obj_property>
+      <obj_property name="ObjectShortName">empty_iFIFO_ext</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/dout_iFIFO_ext">
+      <obj_property name="ElementShortName">dout_iFIFO_ext[63:0]</obj_property>
+      <obj_property name="ObjectShortName">dout_iFIFO_ext[63:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/pop_n_iFIFO_hd">
+      <obj_property name="ElementShortName">pop_n_iFIFO_hd</obj_property>
+      <obj_property name="ObjectShortName">pop_n_iFIFO_hd</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/empty_iFIFO_hd">
+      <obj_property name="ElementShortName">empty_iFIFO_hd</obj_property>
+      <obj_property name="ObjectShortName">empty_iFIFO_hd</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/dout_iFIFO_hd">
+      <obj_property name="ElementShortName">dout_iFIFO_hd[63:0]</obj_property>
+      <obj_property name="ObjectShortName">dout_iFIFO_hd[63:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/push_n_oFIFO_ext">
+      <obj_property name="ElementShortName">push_n_oFIFO_ext</obj_property>
+      <obj_property name="ObjectShortName">push_n_oFIFO_ext</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/full_oFIFO_ext">
+      <obj_property name="ElementShortName">full_oFIFO_ext</obj_property>
+      <obj_property name="ObjectShortName">full_oFIFO_ext</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/din_oFIFO_ext">
+      <obj_property name="ElementShortName">din_oFIFO_ext[63:0]</obj_property>
+      <obj_property name="ObjectShortName">din_oFIFO_ext[63:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/push_n_oFIFO_hd">
+      <obj_property name="ElementShortName">push_n_oFIFO_hd</obj_property>
+      <obj_property name="ObjectShortName">push_n_oFIFO_hd</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/full_oFIFO_hd">
+      <obj_property name="ElementShortName">full_oFIFO_hd</obj_property>
+      <obj_property name="ObjectShortName">full_oFIFO_hd</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/din_oFIFO_hd">
+      <obj_property name="ElementShortName">din_oFIFO_hd[63:0]</obj_property>
+      <obj_property name="ObjectShortName">din_oFIFO_hd[63:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/WL_SEL">
       <obj_property name="ElementShortName">WL_SEL[1023:0]</obj_property>
       <obj_property name="ObjectShortName">WL_SEL[1023:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/counter_fsm">
-      <obj_property name="ElementShortName">counter_fsm[9:0]</obj_property>
-      <obj_property name="ObjectShortName">counter_fsm[9:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/BLplus_SEL">
+      <obj_property name="ElementShortName">BLplus_SEL[511:0]</obj_property>
+      <obj_property name="ObjectShortName">BLplus_SEL[511:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/curr_state">
-      <obj_property name="ElementShortName">curr_state[2:0]</obj_property>
-      <obj_property name="ObjectShortName">curr_state[2:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/BLminus_SEL">
+      <obj_property name="ElementShortName">BLminus_SEL[511:0]</obj_property>
+      <obj_property name="ObjectShortName">BLminus_SEL[511:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/NUM_STORE_WEIGHTS_CYCLES">
-      <obj_property name="ElementShortName">NUM_STORE_WEIGHTS_CYCLES[8:0]</obj_property>
-      <obj_property name="ObjectShortName">NUM_STORE_WEIGHTS_CYCLES[8:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/BLref_SEL">
+      <obj_property name="ElementShortName">BLref_SEL[511:0]</obj_property>
+      <obj_property name="ObjectShortName">BLref_SEL[511:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/COL_BURST_SIZE_WR_RD">
-      <obj_property name="ElementShortName">COL_BURST_SIZE_WR_RD[2:0]</obj_property>
-      <obj_property name="ObjectShortName">COL_BURST_SIZE_WR_RD[2:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/SLplus_SEL">
+      <obj_property name="ElementShortName">SLplus_SEL[511:0]</obj_property>
+      <obj_property name="ObjectShortName">SLplus_SEL[511:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/COL_BASE_ADDR">
-      <obj_property name="ElementShortName">COL_BASE_ADDR[2:0]</obj_property>
-      <obj_property name="ObjectShortName">COL_BASE_ADDR[2:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/SLminus_SEL">
+      <obj_property name="ElementShortName">SLminus_SEL[511:0]</obj_property>
+      <obj_property name="ObjectShortName">SLminus_SEL[511:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/NUM_WRITE_CYCLES">
-      <obj_property name="ElementShortName">NUM_WRITE_CYCLES[8:0]</obj_property>
-      <obj_property name="ObjectShortName">NUM_WRITE_CYCLES[8:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/SLref_SEL">
+      <obj_property name="ElementShortName">SLref_SEL[511:0]</obj_property>
+      <obj_property name="ObjectShortName">SLref_SEL[511:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/START_ADDR_SL">
-      <obj_property name="ElementShortName">START_ADDR_SL[8:0]</obj_property>
-      <obj_property name="ObjectShortName">START_ADDR_SL[8:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/SL_MUX_SEL">
+      <obj_property name="ElementShortName">SL_MUX_SEL[511:0]</obj_property>
+      <obj_property name="ObjectShortName">SL_MUX_SEL[511:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/ROW_ADDR">
-      <obj_property name="ElementShortName">ROW_ADDR[9:0]</obj_property>
-      <obj_property name="ObjectShortName">ROW_ADDR[9:0]</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="/rram_controller_fsm_tb/controller_fsm/COL_POL">
-      <obj_property name="ElementShortName">COL_POL</obj_property>
-      <obj_property name="ObjectShortName">COL_POL</obj_property>
-   </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/WL_UNGATED">
-      <obj_property name="ElementShortName">WL_UNGATED[1023:0]</obj_property>
-      <obj_property name="ObjectShortName">WL_UNGATED[1023:0]</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="/rram_controller_fsm_tb/controller_fsm/WL_BIAS_SEL">
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/WL_BIAS_SEL">
       <obj_property name="ElementShortName">WL_BIAS_SEL</obj_property>
       <obj_property name="ObjectShortName">WL_BIAS_SEL</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/BL_BIAS_SEL">
-      <obj_property name="ElementShortName">BL_BIAS_SEL[2:0]</obj_property>
-      <obj_property name="ObjectShortName">BL_BIAS_SEL[2:0]</obj_property>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/BL_BIAS_SEL">
+      <obj_property name="ElementShortName">BL_BIAS_SEL</obj_property>
+      <obj_property name="ObjectShortName">BL_BIAS_SEL</obj_property>
    </wvobject>
-   <wvobject type="logic" fp_name="/rram_controller_fsm_tb/controller_fsm/SL_BIAS_SEL">
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/SL_BIAS_SEL">
       <obj_property name="ElementShortName">SL_BIAS_SEL</obj_property>
       <obj_property name="ObjectShortName">SL_BIAS_SEL</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/WEIGHT_REG">
-      <obj_property name="ElementShortName">WEIGHT_REG[511:0]</obj_property>
-      <obj_property name="ObjectShortName">WEIGHT_REG[511:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/ADCOUT_THERM">
+      <obj_property name="ElementShortName">ADCOUT_THERM[479:0]</obj_property>
+      <obj_property name="ObjectShortName">ADCOUT_THERM[479:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/COLSELb">
-      <obj_property name="ElementShortName">COLSELb[511:0]</obj_property>
-      <obj_property name="ObjectShortName">COLSELb[511:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/NUM_ADC">
+      <obj_property name="ElementShortName">NUM_ADC[31:0]</obj_property>
+      <obj_property name="ObjectShortName">NUM_ADC[31:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/LOCAL_INSTR">
-      <obj_property name="ElementShortName">LOCAL_INSTR[3:0]</obj_property>
-      <obj_property name="ObjectShortName">LOCAL_INSTR[3:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/NUM_CORE">
+      <obj_property name="ElementShortName">NUM_CORE[31:0]</obj_property>
+      <obj_property name="ObjectShortName">NUM_CORE[31:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/BL_UNGATED">
-      <obj_property name="ElementShortName">BL_UNGATED[511:0][2:0]</obj_property>
-      <obj_property name="ObjectShortName">BL_UNGATED[511:0][2:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/COREID">
+      <obj_property name="ElementShortName">COREID[31:0]</obj_property>
+      <obj_property name="ObjectShortName">COREID[31:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/SL_UNGATED">
-      <obj_property name="ElementShortName">SL_UNGATED[511:0][2:0]</obj_property>
-      <obj_property name="ObjectShortName">SL_UNGATED[511:0][2:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/NUM_WL">
+      <obj_property name="ElementShortName">NUM_WL[31:0]</obj_property>
+      <obj_property name="ObjectShortName">NUM_WL[31:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/rram_controller_fsm_tb/controller_fsm/wr_cycle_ctr">
-      <obj_property name="ElementShortName">wr_cycle_ctr[8:0]</obj_property>
-      <obj_property name="ObjectShortName">wr_cycle_ctr[8:0]</obj_property>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/NUM_BL">
+      <obj_property name="ElementShortName">NUM_BL[31:0]</obj_property>
+      <obj_property name="ObjectShortName">NUM_BL[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/NUM_SL">
+      <obj_property name="ElementShortName">NUM_SL[31:0]</obj_property>
+      <obj_property name="ObjectShortName">NUM_SL[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/INSTR_WIDTH">
+      <obj_property name="ElementShortName">INSTR_WIDTH[31:0]</obj_property>
+      <obj_property name="ObjectShortName">INSTR_WIDTH[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/OPCODE_WIDTH">
+      <obj_property name="ElementShortName">OPCODE_WIDTH[31:0]</obj_property>
+      <obj_property name="ObjectShortName">OPCODE_WIDTH[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/LOCAL_OPCODE_WIDTH">
+      <obj_property name="ElementShortName">LOCAL_OPCODE_WIDTH[31:0]</obj_property>
+      <obj_property name="ObjectShortName">LOCAL_OPCODE_WIDTH[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/DATAIN_WIDTH">
+      <obj_property name="ElementShortName">DATAIN_WIDTH[31:0]</obj_property>
+      <obj_property name="ObjectShortName">DATAIN_WIDTH[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/DATAOUT_WIDTH">
+      <obj_property name="ElementShortName">DATAOUT_WIDTH[31:0]</obj_property>
+      <obj_property name="ObjectShortName">DATAOUT_WIDTH[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/NUM_HD_CLASSES">
+      <obj_property name="ElementShortName">NUM_HD_CLASSES[31:0]</obj_property>
+      <obj_property name="ObjectShortName">NUM_HD_CLASSES[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/MAX_HD_SEGMENT_COL">
+      <obj_property name="ElementShortName">MAX_HD_SEGMENT_COL[31:0]</obj_property>
+      <obj_property name="ObjectShortName">MAX_HD_SEGMENT_COL[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/ADC_WIDTH_THERM">
+      <obj_property name="ElementShortName">ADC_WIDTH_THERM[31:0]</obj_property>
+      <obj_property name="ObjectShortName">ADC_WIDTH_THERM[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/ADC_WIDTH">
+      <obj_property name="ElementShortName">ADC_WIDTH[31:0]</obj_property>
+      <obj_property name="ObjectShortName">ADC_WIDTH[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/rram_controller_final_gatelevel_tb/PHD_ACC_WIDTH">
+      <obj_property name="ElementShortName">PHD_ACC_WIDTH[31:0]</obj_property>
+      <obj_property name="ObjectShortName">PHD_ACC_WIDTH[31:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/rram_controller/g1513597/I">
+      <obj_property name="ElementShortName">I</obj_property>
+      <obj_property name="ObjectShortName">I</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/rram_controller_final_gatelevel_tb/rram_controller/g1513597/ZN">
+      <obj_property name="ElementShortName">ZN</obj_property>
+      <obj_property name="ObjectShortName">ZN</obj_property>
    </wvobject>
 </wave_config>
